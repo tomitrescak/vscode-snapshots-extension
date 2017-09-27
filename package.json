@@ -24,20 +24,20 @@
 		"vscode": "^0.10.7"
 	},
 	"activationEvents": [
-		"onCommand:extension.showCssPropertyPreview"
+		"onCommand:extension.showSnapshots"
 	],
 	"main": "./out/extension",
 	"contributes": {
 		"commands": [
 			{
-				"command": "extension.showCssPropertyPreview",
+				"command": "extension.showSnapshots",
 				"title": "Snapshots Preview"
 			}
 		],
 		"menus": {
 			"editor/title": [
 				{
-					"command": "extension.showCssPropertyPreview",
+					"command": "extension.showSnapshots",
 					"when": "resourceLangId == css"
 				}
 			]
