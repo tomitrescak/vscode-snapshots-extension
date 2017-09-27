@@ -14,16 +14,20 @@ const html = `<!DOCTYPE html>
     <title></title>
 </head>
 
-<body>
+<body style="background: transparent; background-image: none!important">
     <link href='http://fonts.googleapis.com/css?family=Lato:400,700' rel='stylesheet' type='text/css'>
     <link href='https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.13/semantic.min.css' rel='stylesheet' type='text/css'>
-		<link rel="stylesheet" type="text/css" href="http://localhost:9001/styles/bundle.css" /> 
+		$style
 		<div style="background: white">
 		$body
 		</div>
 </body>
 
 </html>`;
+
+let lastTest = null;
+let lastSnapshots = null;
+let lastFolders = null;
 
 export function activate(context: vscode.ExtensionContext) {
 
@@ -100,9 +104,10 @@ export function activate(context: vscode.ExtensionContext) {
 			return position;
 		}
 
-		private extractPaths(text: string, contextStart: number) {
+		private extractPaths(text: string, contextStart: number): { testName: string, folders?: string[], snapshots?: string } {
 			let testName = null;
 			let folders = [];
+			let preview = null;
 
 			for (let i=contextStart; i>=0; i--) {
 				if (!testName) {
@@ -115,16 +120,31 @@ export function activate(context: vscode.ExtensionContext) {
 					i = this.findMatchingBracket(text, i);
 				} 
 			}
+
 			return {
 				testName,
-				folders
+				folders: folders.reverse()
 			};
+		}
+
+		private extractSnapshotNames(text: string, contextStart: number, contextEnd: number) {
+			let names = [];
+			for (let i=contextEnd; i>= contextStart; i--) {
+				if (this.testWordAtPosition(text, 'matchSnapshot(\'', i)) {
+					names.push(this.extractText(text, i + 1));
+				}
+			}
+			return names;
 		}
 
 		
 
 		private testExtraction() {
 			let editor = vscode.window.activeTextEditor;
+			if (!editor) {
+				return `<div>No test found!</div>`;
+			}
+
 			let text: string = editor.document.getText();
 			let selStart = editor.document.offsetAt(editor.selection.anchor);
 			
@@ -134,30 +154,57 @@ export function activate(context: vscode.ExtensionContext) {
 
 			let paths = this.extractPaths(text, startSearch);
 			if (!paths.testName) {
-				return `<div>No test found!</div>`;
+				if (!lastTest) {
+					return `<div>No test found!</div>`;
+				} else {
+					paths.testName = lastTest;
+					paths.folders = lastFolders;
+				}
 			}
 
-			let snapshotFileName = paths.folders.reverse().map(f => f.replace(/\s/g, '')).join('_') + '_snapshots.json';
-			let rootPath = path.join(vscode.workspace.rootPath, 'src', 'tests', 'snapshots', snapshotFileName);
-			let file = fs.readFileSync(rootPath, { encoding: 'utf-8' });
+			let snapshotFileName = paths.folders.map(f => f.replace(/\s/g, '')).join('_') + '_snapshots.json';
+			let publicPath =  path.join(vscode.workspace.rootPath, 'public');
+			let rootPath = path.join(vscode.workspace.rootPath, 'src', 'tests', 'snapshots');
+			let snapshotPath = path.join(rootPath, snapshotFileName);
+			let generatedStylePath = path.join(rootPath, 'generated.css'); 
+			let bundleStylePath = path.join(publicPath, 'styles', 'bundle.css'); 
+
+			let file = fs.readFileSync(snapshotPath, { encoding: 'utf-8' });
 			let ss = JSON.parse(file);
+			
+			let snapshotNames = this.extractSnapshotNames(text, startSearch, lastBracket);
+			snapshotNames.push(paths.testName);
 
 			let snapshots = '';
 			for (let key of Object.getOwnPropertyNames(ss)) {
-				let text = ss[key].replace(/src="(\/|^h)/g, 'src="http://localhost:9001/');
-				text = text.replace(/href="\/?/g, 'href="http://localhost:9001/');
+				// remove snapshots that are not in this test
+				if (snapshotNames.every(s => key.indexOf(s) === -1)) {
+					continue;
+				}
+				let text = ss[key].replace(/src="(\/|^h)/g, `src="file://${publicPath}/`);
+				text = text.replace(/href="\/?/g, `href="file://${publicPath}/`);
 				snapshots += `
-				<div class="ui fluid label">${key}</div>
+				<div class="ui fluid label">${key.replace(/ 1$/, '')}</div>
 				<div style="padding: 6px">${text}</div>`
 			}
 
-			console.log(snapshots);
+			// console.log(snapshots);
 			
 
-			return html.replace('$body', `<div style="padding: 6px">
+			let result = html.replace('$body', `<div style="padding: 6px">
 				<div class="ui divided header">Test: ${paths.testName}</div>
 				${snapshots}
 			</div>`);
+			result = result.replace('$style', `
+				<link href='file://${generatedStylePath}' rel='stylesheet' type='text/css'>
+				<link href='file://${bundleStylePath}' rel='stylesheet' type='text/css'>
+			`)
+
+			lastSnapshots = result;
+			lastFolders = paths.folders;
+			lastTest = paths.testName;
+
+			return result;
 		}
 
 		// private frame(uri: string) {
@@ -169,20 +216,28 @@ export function activate(context: vscode.ExtensionContext) {
 
 	let provider = new TextDocumentContentProvider();
 	let registration = vscode.workspace.registerTextDocumentContentProvider('css-preview', provider);
+	let throttle = null;
+
+	function throttledUpdate() {
+		if (throttle) {
+			clearTimeout(throttle);
+		}
+		throttle = setTimeout(() => provider.update(previewUri), 600);
+	}
 
 	vscode.workspace.onDidChangeTextDocument((e: vscode.TextDocumentChangeEvent) => {
 		if (e.document === vscode.window.activeTextEditor.document) {
-			provider.update(previewUri);
+			throttledUpdate();
 		}
 	});
 
 	vscode.window.onDidChangeTextEditorSelection((e: vscode.TextEditorSelectionChangeEvent) => {
 		if (e.textEditor === vscode.window.activeTextEditor) {
-			provider.update(previewUri);
+			throttledUpdate();
 		}
 	})
 
-	let disposable = vscode.commands.registerCommand('extension.showCssPropertyPreview', () => {
+	let disposable = vscode.commands.registerCommand('extension.showSnapshots', () => {
 		return vscode.commands.executeCommand('vscode.previewHtml', previewUri, vscode.ViewColumn.Two, 'Snapshots').then((success) => {
 		}, (reason) => {
 			vscode.window.showErrorMessage(reason);
