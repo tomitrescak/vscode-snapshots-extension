@@ -7,6 +7,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 
+const noTests = `<div>No test found!</div>`;
+
 const html = `<!DOCTYPE html>
 <html>
 
@@ -35,9 +37,16 @@ export function activate(context: vscode.ExtensionContext) {
 
 	class TextDocumentContentProvider implements vscode.TextDocumentContentProvider {
 		private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
+		private _snapshots: string = null;
+		private _uri: vscode.Uri;
 
 		public provideTextDocumentContent(uri: vscode.Uri): string {
-			return this.createCssSnippet();
+			this._uri = uri;
+
+			if (!this._snapshots) {
+				this._snapshots = this.testExtraction(false);
+			}
+			return this._snapshots;
 		}
 
 		get onDidChange(): vscode.Event<vscode.Uri> {
@@ -45,18 +54,9 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 
 		public update(uri: vscode.Uri) {
-			this._onDidChange.fire(uri);
+			this._uri = uri;
+			this.testExtraction(true);
 		}
-
-		private createCssSnippet() {
-			// let editor = vscode.window.activeTextEditor;
-			// if (!(editor.document.languageId === 'css')) {
-			// 	return this.errorSnippet("Active editor doesn't show a CSS document - no properties to preview.")
-			// }
-			return this.testExtraction();
-			// return this.frame('http://localhost:9001');
-		}
-
 
 		private testWordAtPosition(text: string, word: string, position: number) {
 			if (text[position] !== '\'') {
@@ -137,12 +137,18 @@ export function activate(context: vscode.ExtensionContext) {
 			return names;
 		}
 
+		set snapshots(value: string) {
+			this._snapshots = value;
+			this._onDidChange.fire(this._uri);
+		}
+
 		
 
-		private testExtraction() {
+		private testExtraction(delay: boolean): string {
 			let editor = vscode.window.activeTextEditor;
 			if (!editor) {
-				return `<div>No test found!</div>`;
+				this.snapshots = noTests;
+				return noTests;
 			}
 
 			let text: string = editor.document.getText();
@@ -155,26 +161,53 @@ export function activate(context: vscode.ExtensionContext) {
 			let paths = this.extractPaths(text, startSearch);
 			if (!paths.testName) {
 				if (!lastTest) {
-					return `<div>No test found!</div>`;
+					this.snapshots = noTests;
+					return noTests;
 				} else {
 					paths.testName = lastTest;
 					paths.folders = lastFolders;
 				}
 			}
 
-			let snapshotFileName = paths.folders.map(f => f.replace(/\s/g, '')).join('_') + '_snapshots.json';
-			let publicPath =  path.join(vscode.workspace.rootPath, 'public');
-			let rootPath = path.join(vscode.workspace.rootPath, 'src', 'tests', 'snapshots');
-			let snapshotPath = path.join(rootPath, snapshotFileName);
-			let generatedStylePath = path.join(rootPath, 'generated.css'); 
-			let bundleStylePath = path.join(publicPath, 'styles', 'bundle.css'); 
-
-			let file = fs.readFileSync(snapshotPath, { encoding: 'utf-8' });
-			let ss = JSON.parse(file);
-			
 			let snapshotNames = this.extractSnapshotNames(text, startSearch, lastBracket);
 			snapshotNames.push(paths.testName);
 
+			let snapshotFileName = paths.folders.map(f => f.replace(/\s/g, '')).join('_') + '_snapshots.json';	
+			let rootPath = path.join(vscode.workspace.rootPath, 'src', 'tests', 'snapshots');
+			let snapshotPath = path.join(rootPath, snapshotFileName);
+
+			if (delay) {
+				console.log('With delay');
+				setTimeout(() => this.readFile(paths.testName, rootPath, snapshotPath, paths.folders, snapshotNames), 600);
+			} else {
+				console.log('Without delay');
+				return this.readFile(paths.testName, rootPath, snapshotPath, paths.folders, snapshotNames);
+			}
+		}
+
+		private readFile(testName: string, rootPath: string, snapshotPath: string, folders: string[], snapshotNames: string[]) {
+			console.log('updating ...');
+			try {
+				let stats = fs.statSync(snapshotPath);
+				// let now = new Date().getTime();
+				// if (now - stats.mtime.getTime() < 500) {
+				// 	console.log('Delaying ...');
+				// 	setTimeout(() => this.readFile(testName, rootPath, snapshotPath, folders, snapshotNames), 500);
+				// 	return `Reading file`;
+				// }
+			} catch (ex) {
+				this.snapshots = 'Error accessing snapshot file: ' + ex.message;
+				return;
+			}
+
+			let file = fs.readFileSync(snapshotPath, { encoding: 'utf-8' });
+
+			let publicPath =  path.join(vscode.workspace.rootPath, 'public');
+			let generatedStylePath = path.join(rootPath, 'generated.css'); 
+			let bundleStylePath = path.join(publicPath, 'styles', 'bundle.css'); 
+
+			let ss = JSON.parse(file);
+			
 			let snapshots = '';
 			for (let key of Object.getOwnPropertyNames(ss)) {
 				// remove snapshots that are not in this test
@@ -192,7 +225,7 @@ export function activate(context: vscode.ExtensionContext) {
 			
 
 			let result = html.replace('$body', `<div style="padding: 6px">
-				<div class="ui divided header">Test: ${paths.testName}</div>
+				<div class="ui divided header">Test: ${testName}</div>
 				${snapshots}
 			</div>`);
 			result = result.replace('$style', `
@@ -201,9 +234,10 @@ export function activate(context: vscode.ExtensionContext) {
 			`)
 
 			lastSnapshots = result;
-			lastFolders = paths.folders;
-			lastTest = paths.testName;
+			lastFolders = folders;
+			lastTest = testName;
 
+			this.snapshots = result;
 			return result;
 		}
 
@@ -222,7 +256,7 @@ export function activate(context: vscode.ExtensionContext) {
 		if (throttle) {
 			clearTimeout(throttle);
 		}
-		throttle = setTimeout(() => provider.update(previewUri), 600);
+		throttle = setTimeout(() => provider.update(previewUri), 400);
 	}
 
 	vscode.workspace.onDidChangeTextDocument((e: vscode.TextDocumentChangeEvent) => {
@@ -242,21 +276,6 @@ export function activate(context: vscode.ExtensionContext) {
 		}, (reason) => {
 			vscode.window.showErrorMessage(reason);
 		});
-	});
-
-	let highlight = vscode.window.createTextEditorDecorationType({ backgroundColor: 'rgba(200,200,200,.35)' });
-
-	vscode.commands.registerCommand('extension.revealCssRule', (uri: vscode.Uri, propStart: number, propEnd: number) => {
-
-		for (let editor of vscode.window.visibleTextEditors) {
-			if (editor.document.uri.toString() === uri.toString()) {
-				let start = editor.document.positionAt(propStart);
-				let end = editor.document.positionAt(propEnd + 1);
-
-				editor.setDecorations(highlight, [new vscode.Range(start, end)]);
-				setTimeout(() => editor.setDecorations(highlight, []), 1500);
-			}
-		}
 	});
 
 	context.subscriptions.push(disposable, registration);
