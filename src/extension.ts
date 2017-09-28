@@ -29,6 +29,7 @@ const html = `<!DOCTYPE html>
 
 let lastTest = null;
 let lastSnapshots = null;
+let lastSnapshotNames = null;
 let lastFolders = null;
 
 export function activate(context: vscode.ExtensionContext) {
@@ -40,11 +41,33 @@ export function activate(context: vscode.ExtensionContext) {
 		private _snapshots: string = null;
 		private _uri: vscode.Uri;
 
+		testName: string;
+		rootPath: string;
+		snapshotPath: string;
+		folders: string[];
+		snapshotNames: string[];
+
+		constructor() {
+			// start watching file system
+			let rootPath = path.join(vscode.workspace.rootPath, 'src', 'tests', 'snapshots', '**');
+			let watcher = vscode.workspace.createFileSystemWatcher(rootPath);
+
+			watcher.onDidChange(this.filesChanged);
+			watcher.onDidCreate(this.filesChanged);
+			watcher.onDidDelete(this.filesChanged);
+		}
+
+		private filesChanged = (e: any) => {
+			this.readFile();
+
+			return { dispose() { }}
+		}
+
 		public provideTextDocumentContent(uri: vscode.Uri): string {
 			this._uri = uri;
 
 			if (!this._snapshots) {
-				this._snapshots = this.testExtraction(false);
+				this._snapshots = this.testExtraction();
 			}
 			return this._snapshots;
 		}
@@ -55,7 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 		public update(uri: vscode.Uri) {
 			this._uri = uri;
-			this.testExtraction(true);
+			this.testExtraction();
 		}
 
 		private testWordAtPosition(text: string, word: string, position: number) {
@@ -91,39 +114,54 @@ export function activate(context: vscode.ExtensionContext) {
 			return name;
 		}
 
-		private findMatchingBracket(text: string, position: number) {
+		private findMatchingBracket(text: string, position: number, openBracket = '{', closeBracket = '}', increment = -1) {
 			let brackets = 1;
 			while (text[position] != undefined && brackets > 0) {
-				if (text[position] === '{') {
+				if (text[position] === openBracket) {
 					brackets--;
-				} else if (text[position] === '}') {
+				} else if (text[position] === closeBracket) {
 					brackets++;
 				}
-				position--;
+				position += increment;
 			}
 			return position;
 		}
 
-		private extractPaths(text: string, contextStart: number): { testName: string, folders?: string[], snapshots?: string } {
+		private extractPaths(text: string, contextStart: number, contextEnd: number): { testName: string, folders?: string[], snapshots?: string[] } {
 			let testName = null;
 			let folders = [];
 			let preview = null;
 
+			let testStart = null;
+			let testEnd = null;
+
 			for (let i=contextStart; i>=0; i--) {
 				if (!testName) {
-					if (this.testWordAtPosition(text, 'it(\'', i) || this.testWordAtPosition(text, 'itMountsAnd(\'', i)) {
+					if (this.testWordAtPosition(text, 'it(\'', i) || this.testWordAtPosition(text, 'itMountsAnd(\'', i) || this.testWordAtPosition(text, 'itMountsContainerAnd(\'', i)) {
 						testName = this.extractText(text, i + 1);
+						testStart = i;
+						testEnd = this.findMatchingBracket(text, i, ')', '(', 1);
 					} 
 				}
-				if (this.testWordAtPosition(text, 'describe(\'', i) || this.testWordAtPosition(text, 'storyOf(\'', i)) {
-					folders.push(this.extractText(text, i + 1));
-					i = this.findMatchingBracket(text, i);
-				} 
+				if (testName) {
+					if (this.testWordAtPosition(text, 'describe(\'', i) || this.testWordAtPosition(text, 'storyOf(\'', i)) {
+						folders.push(this.extractText(text, i + 1));
+						i = this.findMatchingBracket(text, i);
+					} 
+				}
+			}
+
+			let snapshots: string[] = null;
+
+			if (testName) {
+				snapshots = this.extractSnapshotNames(text, testStart, testEnd);
+				snapshots.push(testName);
 			}
 
 			return {
 				testName,
-				folders: folders.reverse()
+				folders: folders.reverse(),
+				snapshots
 			};
 		}
 
@@ -144,7 +182,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 		
 
-		private testExtraction(delay: boolean): string {
+		private testExtraction(): string {
 			let editor = vscode.window.activeTextEditor;
 			if (!editor) {
 				this.snapshots = noTests;
@@ -158,7 +196,7 @@ export function activate(context: vscode.ExtensionContext) {
 			let lastBracket = text.indexOf('}', selStart) - 1;
 			let startSearch = this.findMatchingBracket(text, lastBracket);
 
-			let paths = this.extractPaths(text, startSearch);
+			let paths = this.extractPaths(text, startSearch, lastBracket);
 			if (!paths.testName) {
 				if (!lastTest) {
 					this.snapshots = noTests;
@@ -166,29 +204,38 @@ export function activate(context: vscode.ExtensionContext) {
 				} else {
 					paths.testName = lastTest;
 					paths.folders = lastFolders;
+					paths.snapshots = lastSnapshotNames;
 				}
 			}
-
-			let snapshotNames = this.extractSnapshotNames(text, startSearch, lastBracket);
-			snapshotNames.push(paths.testName);
 
 			let snapshotFileName = paths.folders.map(f => f.replace(/\s/g, '')).join('_') + '_snapshots.json';	
 			let rootPath = path.join(vscode.workspace.rootPath, 'src', 'tests', 'snapshots');
 			let snapshotPath = path.join(rootPath, snapshotFileName);
 
-			if (delay) {
-				console.log('With delay');
-				setTimeout(() => this.readFile(paths.testName, rootPath, snapshotPath, paths.folders, snapshotNames), 600);
-			} else {
-				console.log('Without delay');
-				return this.readFile(paths.testName, rootPath, snapshotPath, paths.folders, snapshotNames);
+			if (paths.testName) {
+				this.testName = paths.testName;
+				this.rootPath = rootPath;
+				this.snapshotPath = snapshotPath;
+				this.folders = paths.folders;
+				this.snapshotNames = paths.snapshots;
+
+
+				// if (delay) {
+				// 	console.log('With delay');
+				// 	setTimeout(() => this.readFile(), 600);
+				// } else {
+					console.log('Without delay');
+					return this.readFile();
+				//}
 			}
 		}
 
-		private readFile(testName: string, rootPath: string, snapshotPath: string, folders: string[], snapshotNames: string[]) {
+		
+
+		private readFile() {
 			console.log('updating ...');
 			try {
-				let stats = fs.statSync(snapshotPath);
+				let stats = fs.statSync(this.snapshotPath);
 				// let now = new Date().getTime();
 				// if (now - stats.mtime.getTime() < 500) {
 				// 	console.log('Delaying ...');
@@ -200,10 +247,10 @@ export function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			let file = fs.readFileSync(snapshotPath, { encoding: 'utf-8' });
+			let file = fs.readFileSync(this.snapshotPath, { encoding: 'utf-8' });
 
 			let publicPath =  path.join(vscode.workspace.rootPath, 'public');
-			let generatedStylePath = path.join(rootPath, 'generated.css'); 
+			let generatedStylePath = path.join(this.rootPath, 'generated.css'); 
 			let bundleStylePath = path.join(publicPath, 'styles', 'bundle.css'); 
 
 			let ss = JSON.parse(file);
@@ -211,7 +258,7 @@ export function activate(context: vscode.ExtensionContext) {
 			let snapshots = '';
 			for (let key of Object.getOwnPropertyNames(ss)) {
 				// remove snapshots that are not in this test
-				if (snapshotNames.every(s => key.indexOf(s) === -1)) {
+				if (this.snapshotNames.every(s => key.indexOf(s) === -1)) {
 					continue;
 				}
 				let text = ss[key].replace(/src="(\/|^h)/g, `src="file://${publicPath}/`);
@@ -225,7 +272,7 @@ export function activate(context: vscode.ExtensionContext) {
 			
 
 			let result = html.replace('$body', `<div style="padding: 6px">
-				<div class="ui divided header">Test: ${testName}</div>
+				<div class="ui divided header">Test: ${this.testName}</div>
 				${snapshots}
 			</div>`);
 			result = result.replace('$style', `
@@ -234,10 +281,16 @@ export function activate(context: vscode.ExtensionContext) {
 			`)
 
 			lastSnapshots = result;
-			lastFolders = folders;
-			lastTest = testName;
+			lastFolders = this.folders;
+			lastTest = this.testName;
+			lastSnapshotNames = this.snapshotNames;
 
 			this.snapshots = result;
+
+			if (vscode.workspace.getConfiguration('snapshots').get('saveHtml')) {
+				fs.writeFileSync(path.join(this.rootPath, 'output.html'), result);
+			}
+
 			return result;
 		}
 
@@ -272,6 +325,7 @@ export function activate(context: vscode.ExtensionContext) {
 	})
 
 	let disposable = vscode.commands.registerCommand('extension.showSnapshots', () => {
+		
 		return vscode.commands.executeCommand('vscode.previewHtml', previewUri, vscode.ViewColumn.Two, 'Snapshots').then((success) => {
 		}, (reason) => {
 			vscode.window.showErrorMessage(reason);
