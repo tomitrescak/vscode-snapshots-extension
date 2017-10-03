@@ -34,9 +34,10 @@ let lastFolders = null;
 
 export function activate(context: vscode.ExtensionContext) {
 
-	let previewUri = vscode.Uri.parse('css-preview://authority/css-preview');
+	let snapshotPreviewUri = vscode.Uri.parse('snapshot-preview://authority/snapshot-preview');
+	let componentPreviewUri = vscode.Uri.parse('component-preview://authority/component-preview');
 
-	class TextDocumentContentProvider implements vscode.TextDocumentContentProvider {
+	abstract class HtmlProvider implements vscode.TextDocumentContentProvider {
 		private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 		private _snapshots: string = null;
 		private _uri: vscode.Uri;
@@ -46,16 +47,21 @@ export function activate(context: vscode.ExtensionContext) {
 		snapshotPath: string;
 		folders: string[];
 		snapshotNames: string[];
+		storyId: string;
 
-		constructor() {
-			// start watching file system
-			let rootPath = path.join(vscode.workspace.rootPath, 'src', 'tests', 'snapshots', '**');
-			let watcher = vscode.workspace.createFileSystemWatcher(rootPath);
+		constructor(watchFiles = true) {
+			if (watchFiles) {
+				// start watching file system
+				let rootPath = path.join(vscode.workspace.rootPath, 'src', 'tests', 'snapshots', '**');
+				let watcher = vscode.workspace.createFileSystemWatcher(rootPath);
 
-			watcher.onDidChange(this.filesChanged);
-			watcher.onDidCreate(this.filesChanged);
-			watcher.onDidDelete(this.filesChanged);
+				watcher.onDidChange(this.filesChanged);
+				watcher.onDidCreate(this.filesChanged);
+				watcher.onDidDelete(this.filesChanged);
+			}
 		}
+
+		protected abstract readFile();
 
 		private filesChanged = (e: any) => {
 			this.readFile();
@@ -66,7 +72,7 @@ export function activate(context: vscode.ExtensionContext) {
 		public provideTextDocumentContent(uri: vscode.Uri): string {
 			this._uri = uri;
 
-			if (!this._snapshots) {
+			if (!this._snapshots || this._snapshots === noTests) {
 				this._snapshots = this.testExtraction();
 			}
 			return this._snapshots;
@@ -180,8 +186,6 @@ export function activate(context: vscode.ExtensionContext) {
 			this._onDidChange.fire(this._uri);
 		}
 
-		
-
 		private testExtraction(): string {
 			let editor = vscode.window.activeTextEditor;
 			if (!editor) {
@@ -208,11 +212,13 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			}
 
+			let storyId = paths.folders.map(f => f.replace(/\s/g, '-').toLowerCase()).join('-');
 			let snapshotFileName = paths.folders.map(f => f.replace(/\s/g, '')).join('_') + '_snapshots.json';	
 			let rootPath = path.join(vscode.workspace.rootPath, 'src', 'tests', 'snapshots');
 			let snapshotPath = path.join(rootPath, snapshotFileName);
 
 			if (paths.testName) {
+				this.storyId = storyId;
 				this.testName = paths.testName;
 				this.rootPath = rootPath;
 				this.snapshotPath = snapshotPath;
@@ -229,10 +235,11 @@ export function activate(context: vscode.ExtensionContext) {
 				//}
 			}
 		}
+	}
 
-		
-
-		private readFile() {
+	class SnapshotContentProvider extends HtmlProvider implements vscode.TextDocumentContentProvider {
+	
+		protected readFile() {
 			console.log('updating ...');
 			try {
 				let stats = fs.statSync(this.snapshotPath);
@@ -301,15 +308,50 @@ export function activate(context: vscode.ExtensionContext) {
 
 	}
 
-	let provider = new TextDocumentContentProvider();
-	let registration = vscode.workspace.registerTextDocumentContentProvider('css-preview', provider);
+	class LuisContentProvider extends HtmlProvider implements vscode.TextDocumentContentProvider {
+		currentUri = '';
+
+		constructor() {
+			super(false);
+		}
+
+		protected readFile() {
+			return this.frame(`http://localhost:9001/bare/${this.storyId}/${this.testName && this.testName.toLowerCase().replace(/\s/g, '-') }`);
+		}
+
+		private frame(uri: string) {
+			if (this.currentUri === uri) {
+				return;
+			}
+
+			const html = `<style>iframe { background-color: white } </style>
+			<div>${uri}</div>
+			<iframe src="${uri}" frameBorder="0" width="100%" height="1000px" />`;
+			
+			this.currentUri = uri;
+			this.snapshots = html;
+
+			return html;
+		}
+
+	}
+
+	let snapshotProvider = new SnapshotContentProvider();
+	let luisProvider = new LuisContentProvider();
+
+	let snapshotRegistration = vscode.workspace.registerTextDocumentContentProvider('snapshot-preview', snapshotProvider);
+	let componentRegistration = vscode.workspace.registerTextDocumentContentProvider('component-preview', luisProvider);
+
 	let throttle = null;
 
 	function throttledUpdate() {
 		if (throttle) {
 			clearTimeout(throttle);
 		}
-		throttle = setTimeout(() => provider.update(previewUri), 400);
+		throttle = setTimeout(() => {
+			snapshotProvider.update(snapshotPreviewUri);
+			luisProvider.update(componentPreviewUri);
+		}, 400);
 	}
 
 	vscode.workspace.onDidChangeTextDocument((e: vscode.TextDocumentChangeEvent) => {
@@ -324,13 +366,20 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	})
 
-	let disposable = vscode.commands.registerCommand('extension.showSnapshots', () => {
-		
-		return vscode.commands.executeCommand('vscode.previewHtml', previewUri, vscode.ViewColumn.Two, 'Snapshots').then((success) => {
+	let snapshotDisposable = vscode.commands.registerCommand('extension.showSnapshots', () => {
+		return vscode.commands.executeCommand('vscode.previewHtml', snapshotPreviewUri, vscode.ViewColumn.Two, 'Snapshots').then((success) => {
 		}, (reason) => {
 			vscode.window.showErrorMessage(reason);
 		});
 	});
 
-	context.subscriptions.push(disposable, registration);
+	let componentDisposable = vscode.commands.registerCommand('extension.showComponent', () => {
+		return vscode.commands.executeCommand('vscode.previewHtml', componentPreviewUri, vscode.ViewColumn.Two, 'Component').then((success) => {
+		}, (reason) => {
+			vscode.window.showErrorMessage(reason);
+		});
+	});
+
+	context.subscriptions.push(snapshotDisposable, snapshotRegistration);
+	context.subscriptions.push(componentDisposable, componentRegistration);
 }
