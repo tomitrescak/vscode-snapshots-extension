@@ -37,55 +37,13 @@ export function activate(context: vscode.ExtensionContext) {
 	let snapshotPreviewUri = vscode.Uri.parse('snapshot-preview://authority/snapshot-preview');
 	let componentPreviewUri = vscode.Uri.parse('component-preview://authority/component-preview');
 
-	abstract class HtmlProvider implements vscode.TextDocumentContentProvider {
-		private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
-		private _snapshots: string = null;
-		private _uri: vscode.Uri;
-
+	class StaticTextExtractor {
 		testName: string;
 		rootPath: string;
 		snapshotPath: string;
 		folders: string[];
 		snapshotNames: string[];
 		storyId: string;
-
-		constructor(watchFiles = true) {
-			if (watchFiles) {
-				// start watching file system
-				let rootPath = path.join(vscode.workspace.rootPath, 'src', 'tests', 'snapshots', '**');
-				let watcher = vscode.workspace.createFileSystemWatcher(rootPath);
-
-				watcher.onDidChange(this.filesChanged);
-				watcher.onDidCreate(this.filesChanged);
-				watcher.onDidDelete(this.filesChanged);
-			}
-		}
-
-		protected abstract readFile();
-
-		private filesChanged = (e: any) => {
-			this.readFile();
-
-			return { dispose() { }}
-		}
-
-		public provideTextDocumentContent(uri: vscode.Uri): string {
-			this._uri = uri;
-
-			if (!this._snapshots || this._snapshots === noTests) {
-				this._snapshots = this.testExtraction();
-			}
-			return this._snapshots;
-		}
-
-		get onDidChange(): vscode.Event<vscode.Uri> {
-			return this._onDidChange.event;
-		}
-
-		public update(uri: vscode.Uri) {
-			this._uri = uri;
-			this.testExtraction();
-		}
 
 		private testWordAtPosition(text: string, word: string, position: number) {
 			if (text[position] !== '\'') {
@@ -181,16 +139,12 @@ export function activate(context: vscode.ExtensionContext) {
 			return names;
 		}
 
-		set snapshots(value: string) {
-			this._snapshots = value;
-			this._onDidChange.fire(this._uri);
-		}
-
-		private testExtraction(): string {
+		public update(): void {
 			let editor = vscode.window.activeTextEditor;
 			if (!editor) {
-				this.snapshots = noTests;
-				return noTests;
+				this.testName = null;
+				this.snapshotNames = [];
+				return;
 			}
 
 			let text: string = editor.document.getText();
@@ -203,8 +157,8 @@ export function activate(context: vscode.ExtensionContext) {
 			let paths = this.extractPaths(text, startSearch, lastBracket);
 			if (!paths.testName) {
 				if (!lastTest) {
-					this.snapshots = noTests;
-					return noTests;
+					this.testName = null;
+					this.snapshotNames = [];
 				} else {
 					paths.testName = lastTest;
 					paths.folders = lastFolders;
@@ -224,25 +178,70 @@ export function activate(context: vscode.ExtensionContext) {
 				this.snapshotPath = snapshotPath;
 				this.folders = paths.folders;
 				this.snapshotNames = paths.snapshots;
-
-
-				// if (delay) {
-				// 	console.log('With delay');
-				// 	setTimeout(() => this.readFile(), 600);
-				// } else {
-					console.log('Without delay');
-					return this.readFile();
-				//}
 			}
+		}
+	}
+
+	abstract class HtmlProvider implements vscode.TextDocumentContentProvider {
+		private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
+		private _snapshots: string = null;
+		private _uri: vscode.Uri;
+		protected extractor: StaticTextExtractor;
+
+		constructor(extractor: StaticTextExtractor, uri: vscode.Uri) {
+			this.extractor = extractor;
+			this._uri = uri;
+		}
+
+		public abstract readFile();
+
+		public provideTextDocumentContent(uri: vscode.Uri): string {
+			if (!this._snapshots || this._snapshots === noTests) {
+				this.extractor.update();
+				this.readFile();
+			}
+			return this._snapshots;
+		}
+
+		get onDidChange(): vscode.Event<vscode.Uri> {
+			return this._onDidChange.event;
+		}
+
+		set snapshots(value: string) {
+			this._snapshots = value;
+			this._onDidChange.fire(this._uri);
 		}
 	}
 
 	class SnapshotContentProvider extends HtmlProvider implements vscode.TextDocumentContentProvider {
 	
-		protected readFile() {
-			console.log('updating ...');
+		constructor(extractor: StaticTextExtractor) {
+			super(extractor, snapshotPreviewUri);
+				// start watching file system
+				let rootPath = path.join(vscode.workspace.rootPath, 'src', 'tests', 'snapshots', '**');
+				let watcher = vscode.workspace.createFileSystemWatcher(rootPath);
+
+				watcher.onDidChange(this.filesChanged);
+				watcher.onDidCreate(this.filesChanged);
+				watcher.onDidDelete(this.filesChanged);
+		}
+
+		private filesChanged = (e: any) => {
+			this.readFile();
+			return { dispose() { }}
+		}
+
+		public readFile() {
+			const { snapshotPath, rootPath, snapshotNames, testName, folders  } = this.extractor;
+
+			if (!testName) {
+				this.snapshots = noTests;
+			}
+
+			let adjustedPath = snapshotPath.replace(/@[^_\.-]+/g, '');
+
 			try {
-				let stats = fs.statSync(this.snapshotPath);
+				let stats = fs.statSync(adjustedPath);
 				// let now = new Date().getTime();
 				// if (now - stats.mtime.getTime() < 500) {
 				// 	console.log('Delaying ...');
@@ -254,10 +253,13 @@ export function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			let file = fs.readFileSync(this.snapshotPath, { encoding: 'utf-8' });
+			// remove tags
+			
+
+			let file = fs.readFileSync(adjustedPath, { encoding: 'utf-8' });
 
 			let publicPath =  path.join(vscode.workspace.rootPath, 'public');
-			let generatedStylePath = path.join(this.rootPath, 'generated.css'); 
+			let generatedStylePath = path.join(rootPath, 'generated.css'); 
 			let bundleStylePath = path.join(publicPath, 'styles', 'bundle.css'); 
 
 			let ss = JSON.parse(file);
@@ -265,10 +267,13 @@ export function activate(context: vscode.ExtensionContext) {
 			let snapshots = '';
 			for (let key of Object.getOwnPropertyNames(ss)) {
 				// remove snapshots that are not in this test
-				if (this.snapshotNames.every(s => key.indexOf(s) === -1)) {
+				if (snapshotNames.every(s => key.indexOf(s) === -1)) {
 					continue;
 				}
 				let text = ss[key].replace(/src="(\/|^h)/g, `src="file://${publicPath}/`);
+				if (text[0] === '{' || text[0] === '[') {
+					text = `<pre>${text}</pre>`
+				}
 				text = text.replace(/href="\/?/g, `href="file://${publicPath}/`);
 				snapshots += `
 				<div class="ui fluid label">${key.replace(/ 1$/, '')}</div>
@@ -279,8 +284,10 @@ export function activate(context: vscode.ExtensionContext) {
 			
 
 			let result = html.replace('$body', `<div style="padding: 6px">
-				<div class="ui divided header">Test: ${this.testName}</div>
-				${snapshots}
+				<div class="ui divided header">Test: ${testName}</div>
+				<div class="ui form">
+					${snapshots}
+				</div>
 			</div>`);
 			result = result.replace('$style', `
 				<link href='file://${generatedStylePath}' rel='stylesheet' type='text/css'>
@@ -288,14 +295,14 @@ export function activate(context: vscode.ExtensionContext) {
 			`)
 
 			lastSnapshots = result;
-			lastFolders = this.folders;
-			lastTest = this.testName;
-			lastSnapshotNames = this.snapshotNames;
+			lastFolders = folders;
+			lastTest = testName;
+			lastSnapshotNames = snapshotNames;
 
 			this.snapshots = result;
 
 			if (vscode.workspace.getConfiguration('snapshots').get('saveHtml')) {
-				fs.writeFileSync(path.join(this.rootPath, 'output.html'), result);
+				fs.writeFileSync(path.join(rootPath, 'output.html'), result);
 			}
 
 			return result;
@@ -311,12 +318,12 @@ export function activate(context: vscode.ExtensionContext) {
 	class LuisContentProvider extends HtmlProvider implements vscode.TextDocumentContentProvider {
 		currentUri = '';
 
-		constructor() {
-			super(false);
+		constructor(extractor: StaticTextExtractor) {
+			super(extractor, componentPreviewUri);
 		}
 
-		protected readFile() {
-			return this.frame(`http://localhost:9001/bare/${this.storyId}/${this.testName && this.testName.toLowerCase().replace(/\s/g, '-') }`);
+		public readFile() {
+			return this.frame(`http://localhost:9001/story/${this.extractor.storyId}/${this.extractor.testName && this.extractor.testName.toLowerCase().replace(/\s/g, '-') }`);
 		}
 
 		private frame(uri: string) {
@@ -336,8 +343,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 	}
 
-	let snapshotProvider = new SnapshotContentProvider();
-	let luisProvider = new LuisContentProvider();
+	let extractor = new StaticTextExtractor();
+	let snapshotProvider = new SnapshotContentProvider(extractor);
+	let luisProvider = new LuisContentProvider(extractor);
 
 	let snapshotRegistration = vscode.workspace.registerTextDocumentContentProvider('snapshot-preview', snapshotProvider);
 	let componentRegistration = vscode.workspace.registerTextDocumentContentProvider('component-preview', luisProvider);
@@ -349,8 +357,9 @@ export function activate(context: vscode.ExtensionContext) {
 			clearTimeout(throttle);
 		}
 		throttle = setTimeout(() => {
-			snapshotProvider.update(snapshotPreviewUri);
-			luisProvider.update(componentPreviewUri);
+			extractor.update();
+			snapshotProvider.readFile();
+			luisProvider.readFile();
 		}, 400);
 	}
 
@@ -375,6 +384,13 @@ export function activate(context: vscode.ExtensionContext) {
 
 	let componentDisposable = vscode.commands.registerCommand('extension.showComponent', () => {
 		return vscode.commands.executeCommand('vscode.previewHtml', componentPreviewUri, vscode.ViewColumn.Two, 'Component').then((success) => {
+		}, (reason) => {
+			vscode.window.showErrorMessage(reason);
+		});
+	});
+
+	let commandDisposable = vscode.commands.registerCommand('extension.showWebViewDevTools', () => {
+		return vscode.commands.executeCommand('_webview.openDevTools').then((success) => {
 		}, (reason) => {
 			vscode.window.showErrorMessage(reason);
 		});

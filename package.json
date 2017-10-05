@@ -32,11 +32,15 @@
     "commands": [
       {
         "command": "extension.showSnapshots",
-        "title": "Snapshots Preview"
+        "title": "Luis: Snapshots Preview"
       },
       {
         "command": "extension.showComponent",
-        "title": "Component Preview"
+        "title": "Luis: Component Preview"
+      },
+      {
+        "command": "extension.showWebViewDevTools",
+        "title": "Luis: Show Component Dev Tools"
       }
     ],
     "menus": {
@@ -70,5 +74,7 @@
     "typescript": "^2.1.4",
     "vscode": "^1.0.0"
   },
-  "dependencies": {}
+  "dependencies": {
+    "json-socket": "^0.3.0"
+  }
 }
