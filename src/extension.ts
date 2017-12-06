@@ -34,6 +34,25 @@ let lastSnapshots = null;
 let lastSnapshotNames = null;
 let lastFolders = null;
 
+function findMatchingBracket(
+  text: string,
+  position: number,
+  openBracket = '{',
+  closeBracket = '}',
+  increment = -1
+) {
+  let brackets = 1;
+  while (text[position] != undefined && brackets > 0) {
+    if (text[position] === openBracket) {
+      brackets--;
+    } else if (text[position] === closeBracket) {
+      brackets++;
+    }
+    position += increment;
+  }
+  return position;
+}
+
 export function activate(context: vscode.ExtensionContext) {
   let snapshotPreviewUri = vscode.Uri.parse('snapshot-preview://authority/snapshot-preview');
   let componentPreviewUri = vscode.Uri.parse('component-preview://authority/component-preview');
@@ -83,25 +102,6 @@ export function activate(context: vscode.ExtensionContext) {
       return name;
     }
 
-    private findMatchingBracket(
-      text: string,
-      position: number,
-      openBracket = '{',
-      closeBracket = '}',
-      increment = -1
-    ) {
-      let brackets = 1;
-      while (text[position] != undefined && brackets > 0) {
-        if (text[position] === openBracket) {
-          brackets--;
-        } else if (text[position] === closeBracket) {
-          brackets++;
-        }
-        position += increment;
-      }
-      return position;
-    }
-
     private extractPaths(
       text: string,
       contextStart: number,
@@ -123,7 +123,7 @@ export function activate(context: vscode.ExtensionContext) {
           ) {
             testName = this.extractText(text, i + 1);
             testStart = i;
-            testEnd = this.findMatchingBracket(text, i, ')', '(', 1);
+            testEnd = findMatchingBracket(text, i, ')', '(', 1);
           }
         }
         if (testName) {
@@ -132,7 +132,7 @@ export function activate(context: vscode.ExtensionContext) {
             this.testWordAtPosition(text, "storyOf('", i)
           ) {
             folders.push(this.extractText(text, i + 1));
-            i = this.findMatchingBracket(text, i);
+            i = findMatchingBracket(text, i);
           }
         }
       }
@@ -176,7 +176,7 @@ export function activate(context: vscode.ExtensionContext) {
 
       // let propStart = text.lastIndexOf('{', selStart);
       let lastBracket = text.indexOf('}', selStart) - 1;
-      let startSearch = this.findMatchingBracket(text, lastBracket);
+      let startSearch = findMatchingBracket(text, lastBracket);
 
       let paths = this.extractPaths(text, startSearch, lastBracket);
       if (!paths.testName) {
@@ -656,13 +656,20 @@ export function activate(context: vscode.ExtensionContext) {
     for (let i = 0; i < document.lineCount; i++) {
       const line = document.lineAt(i);
       let match: RegExpExecArray | null;
-      let regex = /(it\(|itMountsAnd\()(.*$)/g;
+      let regex = /(it\s*\(|itMountsAnd\s*\()(.*$)/g;
       regex.lastIndex = 0;
       const text = line.text.substr(0, 1000);
       while ((match = regex.exec(text))) {
         const result = createRegexMatch(document, i, match, position);
         if (result) {
-          matches.push(result);
+          // check if there is match snapshot there
+          let documentText = document.getText();
+          let start = position + match.index + match[1].length + 2;
+          let end = findMatchingBracket(documentText, start, ')', '(', 1);
+          let test = documentText.substring(start, end);
+          if (test.indexOf('matchSnapshot') >= 0) {
+            matches.push(result);
+          }
         }
       }
       position += line.text.length + 1;
@@ -672,7 +679,6 @@ export function activate(context: vscode.ExtensionContext) {
 
   class SnapshotCodeLensProvider implements vscode.CodeLensProvider {
     provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken) {
-      console.log('Lensing ...');
       const matches = findRegexes(document);
       return matches.map(
         match =>
