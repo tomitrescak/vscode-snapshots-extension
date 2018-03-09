@@ -3,6 +3,7 @@
  *--------------------------------------------------------*/
 'use strict';
 
+//@ts-ignore
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -125,8 +126,7 @@ export function activate(context: vscode.ExtensionContext) {
             testStart = i;
             testEnd = findMatchingBracket(text, i, ')', '(', 1);
           }
-        }
-        if (testName) {
+
           if (
             this.testWordAtPosition(text, "describe('", i) ||
             this.testWordAtPosition(text, "storyOf('", i)
@@ -161,7 +161,7 @@ export function activate(context: vscode.ExtensionContext) {
       return names;
     }
 
-    public update(selStart = null): void {
+    public update(selStart = null, acceptFolders = false): void {
       let editor = vscode.window.activeTextEditor;
       if (!editor) {
         this.testName = null;
@@ -177,9 +177,21 @@ export function activate(context: vscode.ExtensionContext) {
       // let propStart = text.lastIndexOf('{', selStart);
       let lastBracket = text.indexOf('}', selStart) - 1;
       let startSearch = findMatchingBracket(text, lastBracket);
+      
+      let filePath = vscode.window.activeTextEditor.document.fileName;
+      let directory = path.join(path.dirname(filePath), '__snapshots__');
+      let fileName = path.basename(filePath);
+      let snapshotFileName = fileName + '.snap';
+      let snapshotPath = path.join(directory, snapshotFileName);
 
       let paths = this.extractPaths(text, startSearch, lastBracket);
-      if (!paths.testName) {
+      if (acceptFolders && paths.folders) {
+        if (!paths.testName) {
+          paths.testName = '';
+        }
+      }
+
+      if (paths.testName == null) {
         if (!lastTest) {
           this.testName = null;
           this.snapshotNames = [];
@@ -191,12 +203,9 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       let storyId = paths.folders.map(f => f.replace(/\s/g, '-').toLowerCase()).join('-');
-      let snapshotFileName =
-        paths.folders.map(f => f.replace(/\s/g, '')).join('_') + '_snapshots.js';
-      let rootPath = path.join(vscode.workspace.rootPath, 'src', 'tests', 'snapshots');
-      let snapshotPath = path.join(rootPath, snapshotFileName);
-
-      if (paths.testName && storyId) {
+      let rootPath = path.join(directory);
+      
+      if (paths.testName != null && storyId) {
         this.storyId = storyId;
         this.testName = paths.testName;
         this.rootPath = rootPath;
@@ -300,8 +309,7 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       let adjustedPath = snapshotPath.replace(/@[^_\.-]+/g, '');
-      let styleName = path.basename(adjustedPath);
-      styleName = styleName.substring(0, styleName.lastIndexOf('.')) + '.css';
+      let styleName = path.parse(path.parse(adjustedPath).name).name + '.css';
 
       if (useCache) {
         if (this.cache[adjustedPath]) {
@@ -570,7 +578,10 @@ export function activate(context: vscode.ExtensionContext) {
       );
     }
 
-    extractor.update(position);
+    extractor.update(position, true);
+    if (fileSnapshots) {
+      extractor.testName = '';
+    }
     if (extractor.folders == null || extractor.testName == null) {
       vscode.window.showErrorMessage('Could not determine the test name');
       return;
@@ -609,8 +620,8 @@ export function activate(context: vscode.ExtensionContext) {
     updateSnapshot(false, match ? match.offset : null);
   });
 
-  vscode.commands.registerCommand('extension.updateFileSnapshots', () => {
-    updateSnapshot(true);
+  vscode.commands.registerCommand('extension.updateFileSnapshots', (match: RegexMatch) => {
+    updateSnapshot(true, match ? match.offset : null);
   });
 
   context.subscriptions.push(snapshotDisposable, snapshotRegistration);
@@ -656,7 +667,7 @@ export function activate(context: vscode.ExtensionContext) {
     for (let i = 0; i < document.lineCount; i++) {
       const line = document.lineAt(i);
       let match: RegExpExecArray | null;
-      let regex = /(it\s*\(|itMountsAnd\s*\()(.*$)/g;
+      let regex = /(it\s*\(|itMountsAnd\s*\(|itMountsContainerAnd\s*\()(.*$)/g;
       regex.lastIndex = 0;
       const text = line.text.substr(0, 1000);
       while ((match = regex.exec(text))) {
@@ -677,16 +688,46 @@ export function activate(context: vscode.ExtensionContext) {
     return matches;
   }
 
+  function findFileRegexes(document: vscode.TextDocument) {
+    const matches: RegexMatch[] = [];
+    let position = 0;
+    for (let i = 0; i < document.lineCount; i++) {
+      const line = document.lineAt(i);
+      let match: RegExpExecArray | null;
+      let regex = /(describe\s*\()(.*$)/g;
+      regex.lastIndex = 0;
+      const text = line.text.substr(0, 1000);
+      while ((match = regex.exec(text))) {
+        const result = createRegexMatch(document, i, match, position);
+        if (result) {
+          matches.push(result);
+        }
+      }
+      position += line.text.length + 1;
+    }
+    return matches;
+  }
+
   class SnapshotCodeLensProvider implements vscode.CodeLensProvider {
     provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken) {
       const matches = findRegexes(document);
+      const describeMatches = findFileRegexes(document);
       return matches.map(
         match =>
           new vscode.CodeLens(match.range, {
-            title: 'Update snapshots...',
+            title: 'Update snapshots',
             command: 'extension.updateTestSnapshots',
             arguments: [match]
           })
+      ).concat(
+        describeMatches.map(
+          match =>
+            new vscode.CodeLens(match.range, {
+              title: 'Update snapshots',
+              command: 'extension.updateFileSnapshots',
+              arguments: [match]
+            })
+        )
       );
     }
   }
