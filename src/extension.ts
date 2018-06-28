@@ -35,6 +35,27 @@ let lastSnapshots = null;
 let lastSnapshotNames = null;
 let lastFolders = null;
 
+let reg = /style=\{\n.*Object (\{[^\}]*\})\n.*\}/g;
+function toStyleTag(styleTag) {
+  try {
+    let g = styleTag.replace(reg, function(m, n) {
+      // remove trailing comma
+      n = n.replace(/,\n.*\}/, '}');
+      let o = JSON.parse(n);
+
+      let values = Object.keys(o).reduce(function(accumulator, currentValue) {
+        let m = currentValue.replace(/([A-Z])/g, (v, g) => '-' + g.toLowerCase());
+        return accumulator + m + ': ' + o[currentValue] + '; ';
+      }, '');
+      return `style="${values}"`;
+    });
+    return g;
+  } catch (ex) {
+    console.error(ex);
+    return styleTag;
+  }
+}
+
 function findMatchingBracket(
   text: string,
   position: number,
@@ -66,6 +87,9 @@ export function activate(context: vscode.ExtensionContext) {
     snapshotNames: string[];
     storyId: string;
     lastFileName: string;
+    watchPath: (string) => void;
+
+    watchPaths = {};
 
     private testWordAtPosition(text: string, word: string, position: number) {
       if (text[position] !== "'") {
@@ -126,14 +150,14 @@ export function activate(context: vscode.ExtensionContext) {
             testStart = i;
             testEnd = findMatchingBracket(text, i, ')', '(', 1);
           }
+        }
 
-          if (
-            this.testWordAtPosition(text, "describe('", i) ||
-            this.testWordAtPosition(text, "storyOf('", i)
-          ) {
-            folders.push(this.extractText(text, i + 1));
-            i = findMatchingBracket(text, i);
-          }
+        if (
+          this.testWordAtPosition(text, "describe('", i) ||
+          this.testWordAtPosition(text, "storyOf('", i)
+        ) {
+          folders.push(this.extractText(text, i + 1));
+          i = findMatchingBracket(text, i);
         }
       }
 
@@ -177,7 +201,7 @@ export function activate(context: vscode.ExtensionContext) {
       // let propStart = text.lastIndexOf('{', selStart);
       let lastBracket = text.indexOf('}', selStart) - 1;
       let startSearch = findMatchingBracket(text, lastBracket);
-      
+
       let filePath = vscode.window.activeTextEditor.document.fileName;
       let directory = path.join(path.dirname(filePath), '__snapshots__');
       let fileName = path.basename(filePath);
@@ -204,7 +228,7 @@ export function activate(context: vscode.ExtensionContext) {
 
       let storyId = paths.folders.map(f => f.replace(/\s/g, '-').toLowerCase()).join('-');
       let rootPath = path.join(directory);
-      
+
       if (paths.testName != null && storyId) {
         this.storyId = storyId;
         this.testName = paths.testName;
@@ -213,6 +237,10 @@ export function activate(context: vscode.ExtensionContext) {
         this.folders = paths.folders;
         this.snapshotNames = paths.snapshots;
         this.lastFileName = vscode.window.activeTextEditor.document.fileName;
+
+        if (this.watchPath) {
+          this.watchPath(this.rootPath);
+        }
       }
     }
   }
@@ -255,12 +283,12 @@ export function activate(context: vscode.ExtensionContext) {
     constructor(extractor: StaticTextExtractor) {
       super(extractor, snapshotPreviewUri);
       // start watching file system
-      let rootPath = path.join(vscode.workspace.rootPath, 'src', 'tests', 'snapshots', '**');
-      let watcher = vscode.workspace.createFileSystemWatcher(rootPath);
+      // let rootPath = path.join(vscode.workspace.rootPath, 'src', 'tests', 'snapshots', '**');
+      // let watcher = vscode.workspace.createFileSystemWatcher(rootPath);
 
-      watcher.onDidChange(this.filesChanged);
-      watcher.onDidCreate(this.filesChanged);
-      watcher.onDidDelete(this.filesChanged);
+      // watcher.onDidChange(this.filesChanged);
+      // watcher.onDidCreate(this.filesChanged);
+      // watcher.onDidDelete(this.filesChanged);
 
       var net = require('net'),
         JsonSocket = require('json-socket');
@@ -286,6 +314,8 @@ export function activate(context: vscode.ExtensionContext) {
           _that.readFile();
         });
       });
+
+      extractor.watchPath = this.watchPath;
     }
 
     private parseStyles(styles: string) {
@@ -294,6 +324,19 @@ export function activate(context: vscode.ExtensionContext) {
         `: url('file://${this.publicPath}/$1')`
       );
     }
+
+    watchPaths = {};
+    private watchPath = (watchPath: string) => {
+      if (this.filesChanged && !this.watchPaths[watchPath]) {
+        let watcher = vscode.workspace.createFileSystemWatcher(path.join(watchPath, '**'));
+
+        watcher.onDidChange(this.filesChanged);
+        watcher.onDidCreate(this.filesChanged);
+        watcher.onDidDelete(this.filesChanged);
+
+        this.watchPaths[watchPath] = watcher;
+      }
+    };
 
     private filesChanged = (e: any) => {
       this.readFile(false);
@@ -346,7 +389,7 @@ export function activate(context: vscode.ExtensionContext) {
       // remove tags
 
       // let file = fs.readFileSync(adjustedPath, { encoding: 'utf-8' });
-      delete(require.cache[adjustedPath])
+      delete require.cache[adjustedPath];
       let ss = require(adjustedPath);
 
       // add to cache
@@ -401,7 +444,7 @@ export function activate(context: vscode.ExtensionContext) {
       let result = html.replace(
         '$body',
         `<div style="padding: 6px">
-					${snapshots}
+					${toStyleTag(snapshots.replace(/className/g, 'class'))}
 			</div>`
       );
       result = result.replace(
@@ -461,8 +504,8 @@ export function activate(context: vscode.ExtensionContext) {
         return this.errorMessage;
       }
       return this.frame(
-        `http://localhost:9001/story/${this.extractor.storyId}/${this.extractor.testName &&
-          this.extractor.testName.toLowerCase().replace(/\s/g, '-')}`
+        `http://localhost:9001?story=${this.extractor.storyId}${this.extractor.testName &&
+          '&test=' + this.extractor.testName.toLowerCase().replace(/\s/g, '-')}`
       );
     }
 
@@ -476,9 +519,7 @@ export function activate(context: vscode.ExtensionContext) {
       const html = `<style>iframe { background-color: white } </style>
 			<link href='file://${luisStylePath}' rel='stylesheet' type='text/css'>
 			<div class="ui grey inverted pointing secondary f1ujhx0c menu" style="margin-bottom: 0px">
-				<a title="Refresh" class="icon item" onclick="javascript:document.getElementById('frame').src='${
-          uri
-        }?ignore=' + Math.random() * 1000"><i aria-hidden="true" class="refresh icon"></i></a>
+				<a title="Refresh" class="icon item" onclick="javascript:document.getElementById('frame').src='${uri}?ignore=' + Math.random() * 1000"><i aria-hidden="true" class="refresh icon"></i></a>
 				<div class="item">
 					${uri}
 				</div>
@@ -644,7 +685,12 @@ export function activate(context: vscode.ExtensionContext) {
     }
   }
 
-  function createRegexMatch(document: vscode.TextDocument, line: number, match: RegExpExecArray, position: number) {
+  function createRegexMatch(
+    document: vscode.TextDocument,
+    line: number,
+    match: RegExpExecArray,
+    position: number
+  ) {
     const regex = createRegex(match[3], match[4]);
     if (regex) {
       return {
@@ -712,23 +758,25 @@ export function activate(context: vscode.ExtensionContext) {
     provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken) {
       const matches = findRegexes(document);
       const describeMatches = findFileRegexes(document);
-      return matches.map(
-        match =>
-          new vscode.CodeLens(match.range, {
-            title: 'Update snapshots',
-            command: 'extension.updateTestSnapshots',
-            arguments: [match]
-          })
-      ).concat(
-        describeMatches.map(
+      return matches
+        .map(
           match =>
             new vscode.CodeLens(match.range, {
               title: 'Update snapshots',
-              command: 'extension.updateFileSnapshots',
+              command: 'extension.updateTestSnapshots',
               arguments: [match]
             })
         )
-      );
+        .concat(
+          describeMatches.map(
+            match =>
+              new vscode.CodeLens(match.range, {
+                title: 'Update snapshots',
+                command: 'extension.updateFileSnapshots',
+                arguments: [match]
+              })
+          )
+        );
     }
   }
 

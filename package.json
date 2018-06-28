@@ -1,98 +1,98 @@
 {
-    "name": "luis-snapshot-preview",
-    "displayName": "Luis Extensions",
-    "description": "Code Extension for Luis",
-    "version": "0.1.15",
-    "publisher": "Tomas",
-    "icon": "images/logo.png",
-    "galleryBanner": {
-        "color": "#5c2d91",
-        "theme": "dark"
-    },
-    "bugs": {
-        "url": "https://github.com/tomitrescak/vscode-snapshots-extension",
-        "email": "tomi.trescak@gmail.com"
-    },
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/tomitrescak/vscode-snapshots-extension"
-    },
-    "homepage": "https://github.com/tomitrescak/luis",
-    "categories": [
-        "Other"
+  "name": "luis-snapshot-preview",
+  "displayName": "Luis Extensions",
+  "description": "Code Extension for Luis",
+  "version": "0.1.18",
+  "publisher": "Tomas",
+  "icon": "images/logo.png",
+  "galleryBanner": {
+    "color": "#5c2d91",
+    "theme": "dark"
+  },
+  "bugs": {
+    "url": "https://github.com/tomitrescak/vscode-snapshots-extension",
+    "email": "tomi.trescak@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tomitrescak/vscode-snapshots-extension"
+  },
+  "homepage": "https://github.com/tomitrescak/luis",
+  "categories": [
+    "Other"
+  ],
+  "engines": {
+    "vscode": "^0.10.7"
+  },
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension",
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.showSnapshots",
+        "title": "Luis: Snapshots Preview"
+      },
+      {
+        "command": "extension.showComponent",
+        "title": "Luis: Component Preview"
+      },
+      {
+        "command": "extension.showWebViewDevTools",
+        "title": "Luis: Show Component Dev Tools"
+      },
+      {
+        "command": "extension.updateTestSnapshots",
+        "title": "Luis: Update Test Snapshots"
+      },
+      {
+        "command": "extension.updateFileSnapshots",
+        "title": "Luis: Update File Snapshots"
+      }
     ],
-    "engines": {
-        "vscode": "^0.10.7"
-    },
-    "activationEvents": [
-        "*"
-    ],
-    "main": "./out/extension",
-    "contributes": {
-        "commands": [
-            {
-                "command": "extension.showSnapshots",
-                "title": "Luis: Snapshots Preview"
-            },
-            {
-                "command": "extension.showComponent",
-                "title": "Luis: Component Preview"
-            },
-            {
-                "command": "extension.showWebViewDevTools",
-                "title": "Luis: Show Component Dev Tools"
-            },
-            {
-                "command": "extension.updateTestSnapshots",
-                "title": "Luis: Update Test Snapshots"
-            },
-            {
-                "command": "extension.updateFileSnapshots",
-                "title": "Luis: Update File Snapshots"
-            }
-        ],
-        "menus": {
-            "editor/title": [
-                {
-                    "command": "extension.showSnapshots",
-                    "when": "resourceLangId == js || resourceLangId == ts || resourceLangId == tsx"
-                }
-            ]
-        },
-        "configuration": {
-            "type": "object",
-            "title": "Snapshot configuration",
-            "properties": {
-                "snapshots.saveHtml": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Decides whether html will be saved to disk"
-                },
-                "snapshots.updateTestCommand": {
-                    "type": "string",
-                    "default": "",
-                    "description": "Executes this command to update snapshots of a current test"
-                },
-                "snapshots.updateFileCommand": {
-                    "type": "string",
-                    "default": "",
-                    "description": "Executes this command to update snapshots of a current file"
-                }
-            }
+    "menus": {
+      "editor/title": [
+        {
+          "command": "extension.showSnapshots",
+          "when": "resourceLangId == js || resourceLangId == ts || resourceLangId == tsx"
         }
+      ]
     },
-    "scripts": {
-        "vscode:prepublish": "",
-        "compile": "tsc -watch -p ./",
-        "postinstall": "node ./node_modules/vscode/bin/install",
-        "tslint": "tslint -c tslint.json src/extension.ts"
-    },
-    "devDependencies": {
-        "@types/node": "*",
-        "typescript": "^2.1.4",
-        "vscode": "^1.0.0"
-    },
-    "dependencies": {
-        "json-socket": "^0.3.0"
+    "configuration": {
+      "type": "object",
+      "title": "Snapshot configuration",
+      "properties": {
+        "snapshots.saveHtml": {
+          "type": "boolean",
+          "default": false,
+          "description": "Decides whether html will be saved to disk"
+        },
+        "snapshots.updateTestCommand": {
+          "type": "string",
+          "default": "",
+          "description": "Executes this command to update snapshots of a current test"
+        },
+        "snapshots.updateFileCommand": {
+          "type": "string",
+          "default": "",
+          "description": "Executes this command to update snapshots of a current file"
+        }
+      }
     }
+  },
+  "scripts": {
+    "vscode:prepublish": "",
+    "compile": "tsc -watch -p ./",
+    "postinstall": "node ./node_modules/vscode/bin/install",
+    "tslint": "tslint -c tslint.json src/extension.ts"
+  },
+  "devDependencies": {
+    "@types/node": "*",
+    "typescript": "^2.1.4",
+    "vscode": "^1.0.0"
+  },
+  "dependencies": {
+    "json-socket": "^0.3.0"
+  }
 }
