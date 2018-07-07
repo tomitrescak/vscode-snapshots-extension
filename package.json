@@ -85,6 +85,11 @@
           "type": "string",
           "default": "",
           "description": "Executes this command to update snapshots of a current file"
+        },
+        "snapshots.previewCount": {
+          "type": "number",
+          "default": 3,
+          "description": "Specify how many preview images you want to keep"
         }
       }
     }

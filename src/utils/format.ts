@@ -18,6 +18,24 @@ const html = `<!DOCTYPE html>
 
 </html>`;
 
+function formatOne(text: string, publicPath: string) {
+  if (text[0] === '{' || text[0] === '[') {
+    text = `<pre>${text}</pre>`;
+  }
+  text = text.replace(/src="(\/|^h)/g, `src="file://${publicPath}/`);
+  text = text.replace(
+    /image (class="[\w ]+")? *href="\/?/g,
+    `image $1 href="file://${publicPath}/`
+  );
+  text = text.replace(/link href="\/?/g, `link href="file://${publicPath}/`);
+  text = text.replace(/: *'?url\("?\/?([\/\w\._]*)"?\)'?/g, `: url('file://${publicPath}/$1')`);
+  text = text.replace(/-webkit-\w+,/g, '');
+  text = text.replace(/-moz-\w+,/g, '');
+  text = text.replace(/-ms-\w+,/g, '');
+
+  return text;
+}
+
 export function formatSnapshot(
   ss: any,
   publicPath: string,
@@ -28,31 +46,24 @@ export function formatSnapshot(
   let luisStylePath = path.join(publicPath, 'styles', 'luis.css');
 
   let snapshots = '';
-  for (let key of Object.getOwnPropertyNames(ss)) {
-    // remove snapshots that are not in this test
-    if (snapshotNames && snapshotNames.every(s => key.indexOf(s) === -1)) {
-      continue;
-    }
-    let text = ss[key];
+  let key = '';
 
-    if (text[0] === '{' || text[0] === '[') {
-      text = `<pre>${text}</pre>`;
+  if (typeof ss == 'string') {
+    snapshots = formatOne(ss, publicPath);
+  } else {
+    for (let key of Object.getOwnPropertyNames(ss)) {
+      // remove snapshots that are not in this test
+      if (snapshotNames && snapshotNames.every(s => key.indexOf(s) === -1)) {
+        continue;
+      }
+      let text = formatOne(ss[key], publicPath);
+
+      snapshots += `
+          <div class="ui fluid label">${key.replace(/ 1$/, '')}</div>
+          <div class="${ss.cssClassName}" style="padding: 6px">${
+        ss.decorator ? ss.decorator.replace('$snapshot', text) : text
+      }</div>`;
     }
-    text = text.replace(/src="(\/|^h)/g, `src="file://${publicPath}/`);
-    text = text.replace(
-      /image (class="[\w ]+")? *href="\/?/g,
-      `image $1 href="file://${publicPath}/`
-    );
-    text = text.replace(/link href="\/?/g, `link href="file://${publicPath}/`);
-    text = text.replace(/: *'?url\("?\/?([\/\w\._]*)"?\)'?/g, `: url('file://${publicPath}/$1')`);
-    text = text.replace(/-webkit-\w+,/g, '');
-    text = text.replace(/-moz-\w+,/g, '');
-    text = text.replace(/-ms-\w+,/g, '');
-    snapshots += `
-				<div class="ui fluid label">${key.replace(/ 1$/, '')}</div>
-				<div class="${ss.cssClassName}" style="padding: 6px">${
-      ss.decorator ? ss.decorator.replace('$snapshot', text) : text
-    }</div>`;
   }
 
   // console.log(snapshots);
