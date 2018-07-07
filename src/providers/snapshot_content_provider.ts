@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import { HtmlProvider, noTests } from './html_provider';
 import { StaticTextExtractor } from '../utils/static_text_extractor';
 import { formatSnapshot } from '../utils/format';
+import { startServer } from '../utils/json_server';
 
 export class SnapshotContentProvider extends HtmlProvider
   implements vscode.TextDocumentContentProvider {
@@ -23,30 +24,18 @@ export class SnapshotContentProvider extends HtmlProvider
     // watcher.onDidCreate(this.filesChanged);
     // watcher.onDidDelete(this.filesChanged);
 
-    var net = require('net'),
-      JsonSocket = require('json-socket');
+    // startServer(message => {
+    //   const file = message.file;
+    //   const content = message.content;
 
-    const _that = this;
+    //   if (file.match(/.css/)) {
+    //     this.cache[file] = this.parseStyles(content.styles);
+    //     return;
+    //   }
 
-    var port = 9838;
-    var server = net.createServer();
-    server.listen(port);
-    server.on('connection', function(socket) {
-      //This is a standard net.Socket
-      socket = new JsonSocket(socket); //Now we've decorated the net.Socket to be a JsonSocket
-      socket.on('message', function(message) {
-        const file = message.file;
-        const content = message.content;
-
-        if (file.match(/.css/)) {
-          _that.cache[file] = _that.parseStyles(content.styles);
-          return;
-        }
-
-        _that.cache[file] = content;
-        _that.readFile();
-      });
-    });
+    //   this.cache[file] = content;
+    //   this.readFile();
+    // });
 
     extractor.watchPath = this.watchPath;
   }

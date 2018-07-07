@@ -22,7 +22,7 @@ export class SnapshotContentPreviewProvider implements vscode.TextDocumentConten
     this.snapshots[e.path] = null;
 
     // this.readFile(e.path);
-    this._onDidChange.fire(this._uri);
+    this.update();
   };
 
   private readFile(path: string) {
@@ -43,5 +43,9 @@ export class SnapshotContentPreviewProvider implements vscode.TextDocumentConten
     }
 
     return this.snapshots[filePath];
+  }
+
+  public update() {
+    this._onDidChange.fire(this._uri);
   }
 }

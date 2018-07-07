@@ -12,6 +12,7 @@ import { SnapshotContentProvider } from './providers/snapshot_content_provider';
 import { SnapshotContentPreviewProvider } from './providers/snapshot_content_preview_provider';
 import { SnapshotCodeLensProvider } from './providers/snapshot_codelens_provider';
 import { LuisContentProvider } from './providers/luis_content_provider';
+import { JestSnapshotProvider } from './providers/jest_snapshot_provider';
 
 export function activate(context: vscode.ExtensionContext) {
   // uri configurations
@@ -21,6 +22,7 @@ export function activate(context: vscode.ExtensionContext) {
     'snapshot-content-preview://authority/snapshot-content-preview'
   );
   let componentPreviewUri = vscode.Uri.parse('component-preview://authority/component-preview');
+  let jestPreviewUri = vscode.Uri.parse('jest-preview://authority/jest-preview');
 
   // providers
 
@@ -28,6 +30,7 @@ export function activate(context: vscode.ExtensionContext) {
   let snapshotProvider = new SnapshotContentProvider(extractor, snapshotPreviewUri);
   let luisProvider = new LuisContentProvider(extractor, componentPreviewUri);
   let snapshotPreviewProvider = new SnapshotContentPreviewProvider(snapshotContentPreviewUri);
+  let jestPreviewProvider = new JestSnapshotProvider(jestPreviewUri);
 
   let snapshotRegistration = vscode.workspace.registerTextDocumentContentProvider(
     'snapshot-preview',
@@ -44,6 +47,11 @@ export function activate(context: vscode.ExtensionContext) {
     luisProvider
   );
 
+  let jestRegistration = vscode.workspace.registerTextDocumentContentProvider(
+    'jest-preview',
+    jestPreviewProvider
+  );
+
   let throttle = null;
 
   function throttledUpdate() {
@@ -54,6 +62,7 @@ export function activate(context: vscode.ExtensionContext) {
       extractor.update();
       snapshotProvider.readFile();
       luisProvider.readFile();
+      snapshotPreviewProvider.update();
     }, 400);
   }
 
@@ -115,6 +124,17 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  let jestPreviewDisposable = vscode.commands.registerCommand('extension.luisSnapshot', () => {
+    return vscode.commands
+      .executeCommand('vscode.previewHtml', jestPreviewUri, vscode.ViewColumn.Two, 'Component')
+      .then(
+        success => {},
+        reason => {
+          vscode.window.showErrorMessage(reason);
+        }
+      );
+  });
+
   vscode.commands.registerCommand('extension.updateTestSnapshots', (match: RegexMatch) => {
     updateSnapshot(extractor, false, match ? match.offset : null);
   });
@@ -126,6 +146,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(snapshotDisposable, snapshotRegistration);
   context.subscriptions.push(componentDisposable, componentRegistration);
   context.subscriptions.push(snapshotContentPreviewDisposable, snapshotContentPreviewRegistration);
+  context.subscriptions.push(jestPreviewDisposable, jestRegistration);
   context.subscriptions.push(
     vscode.languages.registerCodeLensProvider(
       [

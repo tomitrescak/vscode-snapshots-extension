@@ -1,3 +1,4 @@
+//@ts-ignore
 import * as vscode from 'vscode';
 
 import { findMatchingBracket } from './utils';

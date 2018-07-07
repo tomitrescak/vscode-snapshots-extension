@@ -1,3 +1,4 @@
+//@ts-ignore
 import * as vscode from 'vscode';
 import * as cp from 'child_process';
 

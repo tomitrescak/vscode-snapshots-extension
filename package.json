@@ -53,6 +53,10 @@
       {
         "command": "extension.previewSnapshotFile",
         "title": "Luis: Preview Snapshot File"
+      },
+      {
+        "command": "extension.luisSnapshot",
+        "title": "Luis: Watch Jest Snapshots"
       }
     ],
     "menus": {
