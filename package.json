@@ -2,7 +2,7 @@
   "name": "luis-snapshot-preview",
   "displayName": "Luis Extensions",
   "description": "Code Extension for Luis",
-  "version": "0.1.18",
+  "version": "0.2.2",
   "publisher": "Tomas",
   "icon": "images/logo.png",
   "galleryBanner": {
@@ -49,6 +49,10 @@
       {
         "command": "extension.updateFileSnapshots",
         "title": "Luis: Update File Snapshots"
+      },
+      {
+        "command": "extension.previewSnapshotFile",
+        "title": "Luis: Preview Snapshot File"
       }
     ],
     "menus": {
