@@ -5,13 +5,13 @@
 
 //@ts-ignore
 import * as vscode from 'vscode';
-import { RegexMatch } from './utils/regex';
-import { updateSnapshot } from './utils/snapshots';
-import { StaticTextExtractor } from './utils/static_text_extractor';
-import { SnapshotContentProvider } from './providers/snapshot_content_provider';
+// import { RegexMatch } from './utils/regex';
+// import { updateSnapshot } from './utils/snapshots';
+// import { StaticTextExtractor } from './utils/static_text_extractor';
+// import { SnapshotContentProvider } from './providers/snapshot_content_provider';
 import { SnapshotContentPreviewProvider } from './providers/snapshot_content_preview_provider';
-import { SnapshotCodeLensProvider } from './providers/snapshot_codelens_provider';
-import { LuisContentProvider } from './providers/luis_content_provider';
+// import { SnapshotCodeLensProvider } from './providers/snapshot_codelens_provider';
+// import { LuisContentProvider } from './providers/luis_content_provider';
 import { JestSnapshotProvider } from './providers/jest_snapshot_provider';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -26,26 +26,26 @@ export function activate(context: vscode.ExtensionContext) {
 
   // providers
 
-  let extractor = new StaticTextExtractor();
-  let snapshotProvider = new SnapshotContentProvider(extractor, snapshotPreviewUri);
-  let luisProvider = new LuisContentProvider(extractor, componentPreviewUri);
+  // let extractor = new StaticTextExtractor();
+  // let snapshotProvider = new SnapshotContentProvider(extractor, snapshotPreviewUri);
+  // let luisProvider = new LuisContentProvider(extractor, componentPreviewUri);
   let snapshotPreviewProvider = new SnapshotContentPreviewProvider(snapshotContentPreviewUri);
   let jestPreviewProvider = new JestSnapshotProvider(jestPreviewUri);
 
-  let snapshotRegistration = vscode.workspace.registerTextDocumentContentProvider(
-    'snapshot-preview',
-    snapshotProvider
-  );
+  // let snapshotRegistration = vscode.workspace.registerTextDocumentContentProvider(
+  //   'snapshot-preview',
+  //   snapshotProvider
+  // );
 
   let snapshotContentPreviewRegistration = vscode.workspace.registerTextDocumentContentProvider(
     'snapshot-content-preview',
     snapshotPreviewProvider
   );
 
-  let componentRegistration = vscode.workspace.registerTextDocumentContentProvider(
-    'component-preview',
-    luisProvider
-  );
+  // let componentRegistration = vscode.workspace.registerTextDocumentContentProvider(
+  //   'component-preview',
+  //   luisProvider
+  // );
 
   let jestRegistration = vscode.workspace.registerTextDocumentContentProvider(
     'jest-preview',
@@ -59,9 +59,9 @@ export function activate(context: vscode.ExtensionContext) {
       clearTimeout(throttle);
     }
     throttle = setTimeout(() => {
-      extractor.update();
-      snapshotProvider.readFile();
-      luisProvider.readFile();
+      // extractor.update();
+      // snapshotProvider.readFile();
+      // luisProvider.readFile();
       snapshotPreviewProvider.update();
     }, 400);
   }
@@ -78,21 +78,21 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  let snapshotDisposable = vscode.commands.registerCommand('extension.showSnapshots', () => {
-    return vscode.commands
-      .executeCommand(
-        'vscode.previewHtml',
-        snapshotPreviewUri,
-        vscode.ViewColumn.Three,
-        'Snapshots'
-      )
-      .then(
-        success => {},
-        reason => {
-          vscode.window.showErrorMessage(reason);
-        }
-      );
-  });
+  // let snapshotDisposable = vscode.commands.registerCommand('extension.showSnapshots', () => {
+  //   return vscode.commands
+  //     .executeCommand(
+  //       'vscode.previewHtml',
+  //       snapshotPreviewUri,
+  //       vscode.ViewColumn.Three,
+  //       'Snapshots'
+  //     )
+  //     .then(
+  //       success => {},
+  //       reason => {
+  //         vscode.window.showErrorMessage(reason);
+  //       }
+  //     );
+  // });
 
   let componentDisposable = vscode.commands.registerCommand('extension.showComponent', () => {
     return vscode.commands
@@ -135,35 +135,35 @@ export function activate(context: vscode.ExtensionContext) {
       );
   });
 
-  vscode.commands.registerCommand('extension.updateTestSnapshots', (match: RegexMatch) => {
-    updateSnapshot(extractor, false, match ? match.offset : null);
-  });
+  // vscode.commands.registerCommand('extension.updateTestSnapshots', (match: RegexMatch) => {
+  //   updateSnapshot(extractor, false, match ? match.offset : null);
+  // });
 
-  vscode.commands.registerCommand('extension.updateFileSnapshots', (match: RegexMatch) => {
-    updateSnapshot(extractor, true, match ? match.offset : null);
-  });
+  // vscode.commands.registerCommand('extension.updateFileSnapshots', (match: RegexMatch) => {
+  //   updateSnapshot(extractor, true, match ? match.offset : null);
+  // });
 
-  context.subscriptions.push(snapshotDisposable, snapshotRegistration);
-  context.subscriptions.push(componentDisposable, componentRegistration);
+  //context.subscriptions.push(snapshotDisposable, snapshotRegistration);
+  //context.subscriptions.push(componentDisposable, componentRegistration);
   context.subscriptions.push(snapshotContentPreviewDisposable, snapshotContentPreviewRegistration);
   context.subscriptions.push(jestPreviewDisposable, jestRegistration);
-  context.subscriptions.push(
-    vscode.languages.registerCodeLensProvider(
-      [
-        {
-          language: 'typescript',
-          scheme: 'file'
-        },
-        {
-          language: 'typescriptreact',
-          scheme: 'file'
-        },
-        {
-          language: 'javascript',
-          scheme: 'file'
-        }
-      ],
-      new SnapshotCodeLensProvider()
-    )
-  );
+  // context.subscriptions.push(
+  //   vscode.languages.registerCodeLensProvider(
+  //     [
+  //       {
+  //         language: 'typescript',
+  //         scheme: 'file'
+  //       },
+  //       {
+  //         language: 'typescriptreact',
+  //         scheme: 'file'
+  //       },
+  //       {
+  //         language: 'javascript',
+  //         scheme: 'file'
+  //       }
+  //     ],
+  //     new SnapshotCodeLensProvider()
+  //   )
+  // );
 }

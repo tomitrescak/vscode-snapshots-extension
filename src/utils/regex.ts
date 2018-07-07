@@ -57,7 +57,7 @@ export function findRegexes(document: vscode.TextDocument) {
         let start = position + match.index + match[1].length + 2;
         let end = findMatchingBracket(documentText, start, ')', '(', 1);
         let test = documentText.substring(start, end);
-        if (test.indexOf('matchSnapshot') >= 0) {
+        if (test.indexOf('toMatchSnapshot') >= 0) {
           matches.push(result);
         }
       }

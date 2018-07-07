@@ -45,13 +45,15 @@ export class SnapshotContentPreviewProvider implements vscode.TextDocumentConten
     let filePath = editor.document.fileName;
 
     if (!filePath.match(/\.snap/)) {
-      try {
-        const snap = path.join(path.dirname(filePath), '__snapshots__', path.basename(filePath) + '.snap');
-        if (fs.existsSync(snap)) {
-          filePath = snap;
-        } else {
-          return;
-        }
+      const snap = path.join(
+        path.dirname(filePath),
+        '__snapshots__',
+        path.basename(filePath) + '.snap'
+      );
+      if (fs.existsSync(snap)) {
+        filePath = snap;
+      } else {
+        return;
       }
     }
 
