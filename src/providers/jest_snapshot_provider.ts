@@ -5,36 +5,56 @@ import { StaticTextExtractor } from '../utils/static_text_extractor';
 import { formatSnapshot } from '../utils/format';
 import { startServer } from '../utils/json_server';
 
+interface SavedSnapshot {
+  time: number;
+  content: string;
+  testName: string;
+  testPath: string;
+  snapshotName: string;
+}
+
 export class JestSnapshotProvider implements vscode.TextDocumentContentProvider {
   private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
   private _uri: vscode.Uri;
   private publicPath = path.join(vscode.workspace.rootPath, 'public');
 
+  private activeTestFile = null;
   private lastDate = Date.now();
-  private snapshots = [];
+  private cache: { [index: string]: SavedSnapshot[] } = {};
 
   constructor(uri: vscode.Uri) {
     this._uri = uri;
 
-    startServer(message => {
+    this.update();
+
+    startServer((message: SavedSnapshot) => {
       const content = message.content;
-      const count = vscode.workspace.getConfiguration('snapshots').get('previewCount');
+      const snapshotName = message.snapshotName;
+      const testFile = path.parse(message.testPath).name;
 
-      // if last result came over second ago we purge results
-      if (Date.now() - this.lastDate > 1000) {
-        this.snapshots = [];
-        this.lastDate = Date.now();
+      if (this.cache[testFile] == null) {
+        this.cache[testFile] = [];
       }
 
-      var snapshot = formatSnapshot(content, this.publicPath);
+      // clear old snapshots, older then two seconds
+      this.cache[testFile] = this.cache[testFile].filter(s => Date.now() - s.time < 1500);
 
-      if (this.snapshots.length < count) {
-        this.snapshots.push(snapshot);
+      const snapshots = this.cache[testFile];
+
+      // find index of snapshot with the current name
+      const index = snapshots.findIndex(s => s.snapshotName === snapshotName);
+
+      // format content in html form
+      message.content = formatSnapshot(content, this.publicPath);
+
+      // insert into cache
+      if (index >= 0) {
+        snapshots[index] = message;
       } else {
-        this.snapshots[count - 1] = snapshot;
+        snapshots.push(message);
       }
 
-      this._onDidChange.fire(this._uri);
+      this.update();
     });
   }
 
@@ -42,10 +62,42 @@ export class JestSnapshotProvider implements vscode.TextDocumentContentProvider 
     return this._onDidChange.event;
   }
 
-  public provideTextDocumentContent(uri: vscode.Uri): string {
-    if (this.snapshots.length) {
-      return this.snapshots.join('<hr style="border-bottom: 1px dashed;" />');
+  updateTestFile(fire = true) {
+    if (vscode.window.activeTextEditor) {
+      var file = vscode.window.activeTextEditor.document.fileName;
+      if (file.match(/\.test\./)) {
+        this.activeTestFile = path.parse(file).name;
+
+        if (fire) this.update();
+      }
     }
+  }
+
+  private update() {
+    this._onDidChange.fire(this._uri);
+  }
+
+  public provideTextDocumentContent(uri: vscode.Uri): string {
+    if (!this.activeTestFile) {
+      this.updateTestFile(false);
+    }
+    if (!this.activeTestFile) {
+      return `<div>Please select a test file (*.test.*)</div>`;
+    }
+    const snapshots = this.cache[this.activeTestFile];
+    if (!snapshots || snapshots.length === 0) {
+      return `<div>No snapshots recorder for this test file</div>`;
+    }
+
+    return (
+      `<div class="ui fluid blue label" style="margin: 3px">Test: ${this.activeTestFile}</div>` +
+      snapshots
+        .map(
+          s => `<div class="ui fluid label" style="margin: 3px">${s.snapshotName}</div>` + s.content
+        )
+        .join('')
+    );
+
     return '<div>No Snapshot Recorded. Please run jest. Last processed snapshot will show here.</div>';
   }
 }

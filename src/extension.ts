@@ -63,6 +63,7 @@ export function activate(context: vscode.ExtensionContext) {
       // snapshotProvider.readFile();
       // luisProvider.readFile();
       snapshotPreviewProvider.update();
+      jestPreviewProvider.updateTestFile();
     }, 400);
   }
 
