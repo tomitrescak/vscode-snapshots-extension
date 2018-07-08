@@ -3,7 +3,6 @@
  *--------------------------------------------------------*/
 'use strict';
 
-//@ts-ignore
 import * as vscode from 'vscode';
 // import { RegexMatch } from './utils/regex';
 // import { updateSnapshot } from './utils/snapshots';

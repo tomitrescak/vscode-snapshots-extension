@@ -1,4 +1,3 @@
-
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { StaticTextExtractor } from '../utils/static_text_extractor';
@@ -86,7 +85,7 @@ export class JestSnapshotProvider implements vscode.TextDocumentContentProvider 
     }
     const snapshots = this.cache[this.activeTestFile];
     if (!snapshots || snapshots.length === 0) {
-      return `<div>No snapshots recorder for this test file</div>`;
+      return `<div>No snapshots recorded for this test file. Please run your test runner. Last processed snapshots of your test file will show here.</div>`;
     }
 
     return (
@@ -97,7 +96,5 @@ export class JestSnapshotProvider implements vscode.TextDocumentContentProvider 
         )
         .join('')
     );
-
-    return '<div>No Snapshot Recorded. Please run jest. Last processed snapshot will show here.</div>';
   }
 }

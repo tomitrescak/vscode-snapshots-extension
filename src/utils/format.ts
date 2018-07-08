@@ -12,7 +12,6 @@ const html = `<!DOCTYPE html>
     <link href='http://fonts.googleapis.com/css?family=Lato:400,700' rel='stylesheet' type='text/css'>
     <link href='https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.13/semantic.min.css' rel='stylesheet' type='text/css'>
     $css
-    $style
 		<div style="background: white">
 		$body
 		</div>
@@ -21,17 +20,23 @@ const html = `<!DOCTYPE html>
 </html>`;
 
 function formatOne(text: string, publicPath: string) {
-  const css = vscode.workspace.getConfiguration('snapshots').get('css') || '';
-  text = text.replace('$css', css);
+  const a = 1;
+
+  text = text.trim();
 
   if (text[0] === '{' || text[0] === '[') {
     text = `<pre>${text}</pre>`;
     return text;
   }
   if (text.startsWith('Object {')) {
-    text = text.replace('Object {', '{');
-    text = `<pre>${JSON.stringify(JSON.parse(text), null, 2)}</pre>`;
-    return text;
+    try {
+      // create object and remove trailing comma
+      text = text.replace('Object {', '{');
+      text = text.replace(/,\n.*\}/, '}');
+      text = `<pre>${JSON.stringify(JSON.parse(text), null, 2)}</pre>`;
+    } finally {
+      return text;
+    }
   }
   text = text.replace(/src="(\/|^h)/g, `src="file://${publicPath}/`);
   text = text.replace(
@@ -85,6 +90,10 @@ export function formatSnapshot(ss: any, publicPath: string, snapshotNames: strin
 					${sBody}
 			</div>`
   );
+
+  // retplace style
+  const css: string = vscode.workspace.getConfiguration('snapshots').get('css') || '';
+  result = result.replace('$css', css);
 
   return result;
 }

@@ -2,7 +2,7 @@
   "name": "luis-snapshot-preview",
   "displayName": "Luis Extensions",
   "description": "Code Extension for Luis",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "publisher": "Tomas",
   "icon": "images/logo.png",
   "galleryBanner": {
