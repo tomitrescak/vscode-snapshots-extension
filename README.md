@@ -22,3 +22,26 @@ You can view all snapshots that are stored in your project folder. Just press `C
 
 <hr />
 <div>Icons made by <a href="http://www.freepik.com" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a> is licensed by <a href="http://creativecommons.org/licenses/by/3.0/" title="Creative Commons BY 3.0" target="_blank">CC 3.0 BY</a></div>
+
+## UI Frameworks and extra CSS
+
+## Styled Components
+
+In case you are using `styled-components` and you want to render also their styles, you need to hack a bit including following. In your test file:
+
+```
+import 'jest-styled-components'
+```
+
+And in your jest startup file (until [this](https://github.com/styled-components/jest-styled-components/issues/135) is resolved):
+
+```js
+const css = require('css');
+const stringify = css.stringify;
+
+css.stringify = ast => {
+  let result = stringify(ast);
+  result = `<style>\n${result}</style>`;
+  return result;
+};
+```

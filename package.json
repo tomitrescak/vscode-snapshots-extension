@@ -56,6 +56,11 @@
           "default": false,
           "description": "Decides whether html will be saved to disk"
         },
+        "snapshots.css": {
+          "type": "string",
+          "default": "",
+          "description": "Extra CSS links that need to be included in the css. e.g. <style rel=\".... />"
+        },
         "snapshots.updateTestCommand": {
           "type": "string",
           "default": "",

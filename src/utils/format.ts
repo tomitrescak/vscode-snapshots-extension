@@ -1,4 +1,5 @@
 import * as path from 'path';
+import * as vscode from 'vscode';
 
 const html = `<!DOCTYPE html>
 <html>
@@ -10,7 +11,8 @@ const html = `<!DOCTYPE html>
 <body style="background: transparent; background-image: none!important">
     <link href='http://fonts.googleapis.com/css?family=Lato:400,700' rel='stylesheet' type='text/css'>
     <link href='https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.13/semantic.min.css' rel='stylesheet' type='text/css'>
-		$style
+    $css
+    $style
 		<div style="background: white">
 		$body
 		</div>
@@ -19,8 +21,17 @@ const html = `<!DOCTYPE html>
 </html>`;
 
 function formatOne(text: string, publicPath: string) {
+  const css = vscode.workspace.getConfiguration('snapshots').get('css') || '';
+  text = text.replace('$css', css);
+
   if (text[0] === '{' || text[0] === '[') {
     text = `<pre>${text}</pre>`;
+    return text;
+  }
+  if (text.startsWith('Object {')) {
+    text = text.replace('Object {', '{');
+    text = `<pre>${JSON.stringify(JSON.parse(text), null, 2)}</pre>`;
+    return text;
   }
   text = text.replace(/src="(\/|^h)/g, `src="file://${publicPath}/`);
   text = text.replace(
@@ -42,9 +53,6 @@ export function formatSnapshot(
   snapshotNames: string[] = null,
   styles = ''
 ) {
-  let bundleStylePath = path.join(publicPath, 'styles', 'bundle.css');
-  let luisStylePath = path.join(publicPath, 'styles', 'luis.css');
-
   let snapshots = '';
   let key = '';
 
@@ -88,8 +96,6 @@ export function formatSnapshot(
 				<style type='text/css'>
 					${styles}
 				</style>
-				<link href='file://${luisStylePath}' rel='stylesheet' type='text/css'>
-				<link href='file://${bundleStylePath}' rel='stylesheet' type='text/css'>
 			`
   );
 
