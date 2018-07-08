@@ -1,4 +1,4 @@
-//@ts-ignore
+
 import * as vscode from 'vscode';
 import { findRegexes, findFileRegexes } from '../utils/regex';
 

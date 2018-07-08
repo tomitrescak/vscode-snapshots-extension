@@ -47,12 +47,7 @@ function formatOne(text: string, publicPath: string) {
   return text;
 }
 
-export function formatSnapshot(
-  ss: any,
-  publicPath: string,
-  snapshotNames: string[] = null,
-  styles = ''
-) {
+export function formatSnapshot(ss: any, publicPath: string, snapshotNames: string[] = null) {
   let snapshots = '';
   let key = '';
 
@@ -89,14 +84,6 @@ export function formatSnapshot(
     `<div style="padding: 6px">
 					${sBody}
 			</div>`
-  );
-  result = result.replace(
-    '$style',
-    `
-				<style type='text/css'>
-					${styles}
-				</style>
-			`
   );
 
   return result;

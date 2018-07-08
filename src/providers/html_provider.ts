@@ -1,4 +1,4 @@
-//@ts-ignore
+
 import * as vscode from 'vscode';
 
 import { StaticTextExtractor } from '../utils/static_text_extractor';

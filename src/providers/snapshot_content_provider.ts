@@ -1,4 +1,4 @@
-//@ts-ignore
+
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -74,7 +74,6 @@ export class SnapshotContentProvider extends HtmlProvider
     }
 
     let adjustedPath = snapshotPath.replace(/@[^_\.-]+/g, '');
-    let styleName = path.parse(path.parse(adjustedPath).name).name + '.css';
 
     if (useCache) {
       if (this.lastFile == testName) {
@@ -87,7 +86,6 @@ export class SnapshotContentProvider extends HtmlProvider
         return this.updateFile(
           rootPath,
           this.cache[adjustedPath],
-          this.cache[styleName],
           snapshotNames,
           folders,
           testName
@@ -96,18 +94,8 @@ export class SnapshotContentProvider extends HtmlProvider
     }
     this.lastFile = testName;
 
-    // read custom styles
-    let stylePath = path.join(rootPath, styleName);
-    let storedStyles = '';
     try {
-      fs.statSync(stylePath);
-      storedStyles = fs.readFileSync(stylePath, { encoding: 'utf-8' });
-      storedStyles = this.parseStyles(storedStyles);
-      this.cache[styleName] = storedStyles;
-    } catch {}
-
-    try {
-      let stats = fs.statSync(adjustedPath);
+      fs.statSync(adjustedPath);
     } catch (ex) {
       this.snapshots = 'There are no snapshots for: ' + adjustedPath;
       return;
@@ -122,18 +110,17 @@ export class SnapshotContentProvider extends HtmlProvider
     // add to cache
     this.cache[adjustedPath] = ss;
 
-    return this.updateFile(rootPath, ss, storedStyles, snapshotNames, folders, testName);
+    return this.updateFile(rootPath, ss, snapshotNames, folders, testName);
   }
 
   public updateFile(
     rootPath: string,
     ss: any,
-    styles: string,
     snapshotNames: string[],
     folders: string[],
     testName: string
   ) {
-    const result = formatSnapshot(ss, this.publicPath, snapshotNames, styles);
+    const result = formatSnapshot(ss, this.publicPath, snapshotNames);
 
     this.extractor.lastSnapshots = result;
     this.extractor.lastFolders = folders;
