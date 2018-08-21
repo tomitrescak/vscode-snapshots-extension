@@ -2,7 +2,7 @@
   "name": "luis-snapshot-preview",
   "displayName": "Luis Extensions",
   "description": "Code Extension for Luis",
-  "version": "1.0.4",
+  "version": "1.0.7",
   "publisher": "Tomas",
   "icon": "images/logo.png",
   "galleryBanner": {
@@ -37,6 +37,10 @@
       {
         "command": "extension.luisSnapshot",
         "title": "Luis: View Live Snapshots"
+      },
+      {
+        "command": "extension.showComponent",
+        "title": "Luis: View Component"
       }
     ],
     "menus": {
@@ -70,6 +74,11 @@
           "type": "string",
           "default": "",
           "description": "Executes this command to update snapshots of a current file"
+        },
+        "snapshots.port": {
+          "type": "number",
+          "default": 9838,
+          "description": "Decides the port where to listen for snapshots"
         }
       }
     }

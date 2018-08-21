@@ -6,11 +6,11 @@
 import * as vscode from 'vscode';
 // import { RegexMatch } from './utils/regex';
 // import { updateSnapshot } from './utils/snapshots';
-// import { StaticTextExtractor } from './utils/static_text_extractor';
+import { StaticTextExtractor } from './utils/static_text_extractor';
 // import { SnapshotContentProvider } from './providers/snapshot_content_provider';
 import { SnapshotContentPreviewProvider } from './providers/snapshot_content_preview_provider';
 // import { SnapshotCodeLensProvider } from './providers/snapshot_codelens_provider';
-// import { LuisContentProvider } from './providers/luis_content_provider';
+import { LuisContentProvider } from './providers/luis_content_provider';
 import { JestSnapshotProvider } from './providers/jest_snapshot_provider';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -25,9 +25,9 @@ export function activate(context: vscode.ExtensionContext) {
 
   // providers
 
-  // let extractor = new StaticTextExtractor();
+  let extractor = new StaticTextExtractor();
   // let snapshotProvider = new SnapshotContentProvider(extractor, snapshotPreviewUri);
-  // let luisProvider = new LuisContentProvider(extractor, componentPreviewUri);
+  let luisProvider = new LuisContentProvider(extractor, componentPreviewUri);
   let snapshotPreviewProvider = new SnapshotContentPreviewProvider(snapshotContentPreviewUri);
   let jestPreviewProvider = new JestSnapshotProvider(jestPreviewUri);
 
@@ -41,10 +41,10 @@ export function activate(context: vscode.ExtensionContext) {
     snapshotPreviewProvider
   );
 
-  // let componentRegistration = vscode.workspace.registerTextDocumentContentProvider(
-  //   'component-preview',
-  //   luisProvider
-  // );
+  let componentRegistration = vscode.workspace.registerTextDocumentContentProvider(
+    'component-preview',
+    luisProvider
+  );
 
   let jestRegistration = vscode.workspace.registerTextDocumentContentProvider(
     'jest-preview',
@@ -58,9 +58,9 @@ export function activate(context: vscode.ExtensionContext) {
       clearTimeout(throttle);
     }
     throttle = setTimeout(() => {
-      // extractor.update();
+      extractor.update();
       // snapshotProvider.readFile();
-      // luisProvider.readFile();
+      luisProvider.readFile();
       snapshotPreviewProvider.update();
       jestPreviewProvider.updateTestFile();
     }, 400);
@@ -96,7 +96,12 @@ export function activate(context: vscode.ExtensionContext) {
 
   let componentDisposable = vscode.commands.registerCommand('extension.showComponent', () => {
     return vscode.commands
-      .executeCommand('vscode.previewHtml', componentPreviewUri, vscode.ViewColumn.Two, 'Component')
+      .executeCommand(
+        'vscode.previewHtml',
+        componentPreviewUri,
+        vscode.ViewColumn.Two,
+        'Luis Server Preview'
+      )
       .then(
         success => {},
         reason => {
@@ -113,7 +118,7 @@ export function activate(context: vscode.ExtensionContext) {
           'vscode.previewHtml',
           snapshotContentPreviewUri,
           vscode.ViewColumn.Two,
-          'Component'
+          'Stored Snapshots'
         )
         .then(
           success => {},
@@ -126,7 +131,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   let jestPreviewDisposable = vscode.commands.registerCommand('extension.luisSnapshot', () => {
     return vscode.commands
-      .executeCommand('vscode.previewHtml', jestPreviewUri, vscode.ViewColumn.Two, 'Component')
+      .executeCommand('vscode.previewHtml', jestPreviewUri, vscode.ViewColumn.Two, 'Live Snapshots')
       .then(
         success => {},
         reason => {
@@ -144,7 +149,7 @@ export function activate(context: vscode.ExtensionContext) {
   // });
 
   //context.subscriptions.push(snapshotDisposable, snapshotRegistration);
-  //context.subscriptions.push(componentDisposable, componentRegistration);
+  context.subscriptions.push(componentDisposable, componentRegistration);
   context.subscriptions.push(snapshotContentPreviewDisposable, snapshotContentPreviewRegistration);
   context.subscriptions.push(jestPreviewDisposable, jestRegistration);
   // context.subscriptions.push(
