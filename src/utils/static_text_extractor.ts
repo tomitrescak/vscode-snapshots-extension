@@ -18,6 +18,7 @@ export class StaticTextExtractor {
   lastFolders = null;
   lastFileName: string;
   lastSnapshots = null;
+  lastStoryId = null;
 
   watchPaths = {};
 
@@ -176,6 +177,7 @@ export class StaticTextExtractor {
       this.folders = paths.folders;
       this.snapshotNames = paths.snapshots;
       this.lastFileName = vscode.window.activeTextEditor.document.fileName;
+      this.lastStoryId = storyId;
 
       if (this.watchPath) {
         this.watchPath(this.rootPath);

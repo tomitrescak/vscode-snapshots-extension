@@ -2,7 +2,7 @@
   "name": "luis-snapshot-preview",
   "displayName": "Luis Extensions",
   "description": "Code Extension for Luis",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "publisher": "Tomas",
   "icon": "images/logo.png",
   "galleryBanner": {
@@ -40,7 +40,7 @@
       },
       {
         "command": "extension.showComponent",
-        "title": "Luis: View Component"
+        "title": "Luis: Show Component"
       }
     ],
     "menus": {

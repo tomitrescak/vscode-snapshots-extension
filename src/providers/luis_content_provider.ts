@@ -26,8 +26,13 @@ export class LuisContentProvider extends HtmlProvider
 
   public readFile() {
     if (!this.extractor.storyId || !this.extractor.testName) {
-      this.snapshots = this.errorMessage;
-      return this.errorMessage;
+      if (!this.extractor.lastStoryId) {
+        this.snapshots = this.errorMessage;
+        return this.errorMessage;
+      }
+
+      this.extractor.storyId = this.extractor.lastStoryId;
+      this.extractor.testName = this.extractor.lastTest || '';
     }
     return this.frame(
       `http://localhost:9001?story=${this.extractor.storyId}${this.extractor.testName &&
@@ -45,10 +50,10 @@ export class LuisContentProvider extends HtmlProvider
     const html = `<style>iframe { background-color: white } </style>
     <link href='file://${luisStylePath}' rel='stylesheet' type='text/css'>
     <div class="ui grey inverted pointing secondary menu" style="margin-bottom: 0px">
-      <a title="Refresh" class="icon item" onclick="javascript:document.getElementById('frame').src='${uri}?ignore=' + Math.random() * 1000"><i aria-hidden="true" class="refresh icon"></i></a>
-      <div class="item">
+      <a title="Refresh" style="cursor: pointer; margin-right: 6px" class="icon item" onclick="javascript:document.getElementById('frame').src='${uri}?ignore=' + Math.random() * 1000">💫</a>
+      <span>
         ${uri}
-      </div>
+      </span>
     </div>
     <iframe id="frame" src="${uri}" frameBorder="0" width="100%" height="1000px" />`;
 
